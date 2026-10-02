@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Play,
   RotateCcw,
@@ -22,6 +22,12 @@ import {
   Clock,
   Sparkles,
   Wifi,
+  Smartphone,
+  Monitor,
+  Tablet,
+  Laptop,
+  Calendar,
+  MapPin,
 } from 'lucide-react';
 import {
   TestPhase,
@@ -36,6 +42,17 @@ import {
   DEFAULT_SERVERS,
   fetchClientInfo,
 } from './utils/speedtest-engine';
+import {
+  detectDeviceTelemetry,
+  detectDeviceTelemetrySync,
+  DeviceTelemetryInfo,
+} from './utils/device-detection';
+import {
+  getInitialLocation,
+  fetchAccurateLocation,
+  requestBrowserGeolocation,
+  ResolvedLocation,
+} from './utils/location';
 import { soundManager } from './utils/audio';
 import { useThemeSystem } from './utils/theme';
 import { SpeedGauge } from './components/SpeedGauge';
@@ -73,6 +90,56 @@ export default function App() {
   const [history, setHistory] = useState<SpeedTestResult[]>([]);
   const [clientInfo, setClientInfo] = useState<ClientNetworkInfo | null>(null);
 
+  // Live Date & Time Clock (updating every second)
+  const [currentDateTime, setCurrentDateTime] = useState<Date>(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentDateTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formattedDay = currentDateTime.toLocaleDateString(undefined, { weekday: 'long' });
+  const formattedDate = currentDateTime.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
+  const formattedTime = currentDateTime.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+
+  // Direct Device Telemetry State (Instant 0ms detection + async high-entropy refinement)
+  const [deviceInfo, setDeviceInfo] = useState<DeviceTelemetryInfo>(() => detectDeviceTelemetrySync());
+
+  useEffect(() => {
+    detectDeviceTelemetry().then((refined) => {
+      setDeviceInfo(refined);
+    });
+  }, []);
+
+  // Accurate User Location (Verified timezone, IP cross-check & GPS refinement)
+  const [userLocation, setUserLocation] = useState<ResolvedLocation>(() => getInitialLocation());
+  const [isLocatingGPS, setIsLocatingGPS] = useState(false);
+  const [gpsNotice, setGpsNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchAccurateLocation().then((loc) => {
+      setUserLocation(loc);
+    });
+  }, []);
+
+  const handleRefineLocationGPS = async () => {
+    setIsLocatingGPS(true);
+    setGpsNotice(null);
+    try {
+      const loc = await requestBrowserGeolocation();
+      setUserLocation(loc);
+      setGpsNotice('Exact GPS verified');
+      setTimeout(() => setGpsNotice(null), 3000);
+    } catch {
+      setGpsNotice('GPS permission prompt dismissed; using network location');
+      setTimeout(() => setGpsNotice(null), 3000);
+    } finally {
+      setIsLocatingGPS(false);
+    }
+  };
+
   // Configuration
   const [config, setConfig] = useState<SpeedTestConfig>({
     server: DEFAULT_SERVERS[0],
@@ -80,6 +147,7 @@ export default function App() {
     concurrency: 4,
     soundEnabled: true,
     unit: 'Mbps',
+    scaleRange: 'auto',
   });
 
   // UI Drawers & Modals
@@ -204,6 +272,20 @@ export default function App() {
   };
 
   const isTesting = phase === 'ping' || phase === 'download' || phase === 'upload';
+
+  const getDeviceIcon = (type?: string) => {
+    switch (type) {
+      case 'mobile':
+        return <Smartphone className="w-4 h-4 text-cyan-600 dark:text-cyan-400 shrink-0" />;
+      case 'tablet':
+        return <Tablet className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />;
+      case 'laptop':
+        return <Laptop className="w-4 h-4 text-cyan-600 dark:text-cyan-400 shrink-0" />;
+      case 'desktop':
+      default:
+        return <Monitor className="w-4 h-4 text-cyan-600 dark:text-cyan-400 shrink-0" />;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#06080e] text-slate-900 dark:text-slate-100 flex flex-col font-sans selection:bg-cyan-500/30 selection:text-cyan-900 dark:selection:text-cyan-200 transition-colors duration-200 relative overflow-x-hidden">
@@ -371,44 +453,100 @@ export default function App() {
         {/* View 1: Main Speed Test Cockpit */}
         {activeTab === 'test' && (
           <div className="space-y-7">
-            {/* Edge Server Selector & Network HUD Ribbon */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-white dark:bg-[#090d16]/90 border border-slate-200 dark:border-cyan-500/20 shadow-xs dark:shadow-lg text-xs font-mono-data relative overflow-hidden">
-              <div className="absolute top-0 left-0 bottom-0 w-1 bg-gradient-to-b from-cyan-500 to-indigo-500" />
+            {/* Top Telemetry Context Ribbon: Date, Day, Time, Location, Node, Device & ISP */}
+            <div className="rounded-xl bg-white dark:bg-[#090d16]/95 border border-slate-200 dark:border-cyan-500/20 shadow-xs dark:shadow-lg text-xs font-mono-data divide-y divide-slate-100 dark:divide-slate-800/80 overflow-hidden relative">
+              <div className="absolute top-0 left-0 bottom-0 w-1 bg-gradient-to-b from-cyan-500 via-sky-400 to-indigo-500" />
 
-              {/* Left: Active Server Quick Switch */}
-              <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300 pl-1.5">
-                <Server className="w-4 h-4 text-cyan-600 dark:text-cyan-400 shrink-0" />
-                <span className="text-slate-400 dark:text-slate-500 font-semibold">NODE:</span>
-                <div className="flex items-center gap-1.5">
-                  {DEFAULT_SERVERS.map((s) => (
-                    <button
-                      key={s.id}
-                      onClick={() => setConfig({ ...config, server: s })}
-                      className={`px-2 py-0.5 rounded text-[11px] font-mono-data transition-all cursor-pointer whitespace-nowrap ${
-                        config.server.id === s.id
-                          ? 'bg-cyan-50 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-500/50 shadow-xs font-semibold'
-                          : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
-                      }`}
-                    >
-                      {s.name.replace('Global ', '').replace(' Node', '')}
-                    </button>
-                  ))}
+              {/* Sub-bar 1: Live Day, Date & Time + Detected Location */}
+              <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 bg-slate-50/70 dark:bg-[#070b14]/70 pl-5">
+                {/* Live Day, Date & Time */}
+                <div className="flex items-center gap-2.5 text-slate-700 dark:text-slate-300">
+                  <Calendar className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" />
+                  <span className="font-semibold text-slate-900 dark:text-white">
+                    {formattedDay}, {formattedDate}
+                  </span>
+                  <span aria-hidden="true" className="text-slate-300 dark:text-slate-700">·</span>
+                  <div className="flex items-center gap-1.5 text-cyan-700 dark:text-cyan-400 font-bold tabular-nums">
+                    <Clock className="w-3 h-3 text-cyan-600 dark:text-cyan-400" />
+                    <span>{formattedTime}</span>
+                  </div>
+                </div>
+
+                {/* Detected Accurate Location */}
+                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                  <MapPin className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400 shrink-0" />
+                  <span className="text-slate-400 dark:text-slate-500 font-semibold uppercase text-[10px]">LOCATION:</span>
+                  <button
+                    onClick={handleRefineLocationGPS}
+                    className="font-bold text-slate-900 dark:text-white hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors flex items-center gap-1.5 cursor-pointer"
+                    title="Click to refine location with high-accuracy GPS"
+                  >
+                    <span>{userLocation.formatted}</span>
+                    {isLocatingGPS ? (
+                      <RotateCcw className="w-3 h-3 text-cyan-500 animate-spin" />
+                    ) : (
+                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-cyan-100/70 dark:bg-cyan-950/60 text-cyan-800 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-700/50 uppercase font-semibold">
+                        {userLocation.source === 'gps' ? 'GPS' : 'Refine GPS'}
+                      </span>
+                    )}
+                  </button>
+                  {gpsNotice && (
+                    <span className="text-[10px] font-mono-data text-cyan-600 dark:text-cyan-400 animate-pulse">
+                      ({gpsNotice})
+                    </span>
+                  )}
                 </div>
               </div>
 
-              {/* Right: Client IP & ISP */}
-              <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                <Globe className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <span className="text-slate-400 dark:text-slate-500 font-semibold">ISP:</span>
-                <span className="text-slate-800 dark:text-slate-200 font-medium truncate max-w-xs">
-                  {clientInfo?.isp || 'Broadband Network'}
-                </span>
-                {clientInfo?.ip && (
-                  <>
-                    <span aria-hidden="true" className="text-slate-300 dark:text-slate-700">·</span>
-                    <span className="text-cyan-700 dark:text-cyan-400 font-semibold">{clientInfo.ip}</span>
-                  </>
-                )}
+              {/* Sub-bar 2: Active Server Node, Device & ISP/IP */}
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 p-3 pl-5">
+                {/* Left: Active Server Quick Switch */}
+                <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300 shrink-0">
+                  <Server className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" />
+                  <span className="text-slate-400 dark:text-slate-500 font-semibold text-[10px] uppercase">NODE:</span>
+                  <div className="flex items-center gap-1.5">
+                    {DEFAULT_SERVERS.map((s) => (
+                      <button
+                        key={s.id}
+                        onClick={() => setConfig({ ...config, server: s })}
+                        className={`px-2 py-0.5 rounded text-[11px] font-mono-data transition-all cursor-pointer whitespace-nowrap ${
+                          config.server.id === s.id
+                            ? 'bg-cyan-50 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-500/50 shadow-xs font-semibold'
+                            : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                        }`}
+                      >
+                        {s.name.replace('Global ', '').replace(' Node', '')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Middle: Active Testing Device */}
+                <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                  {getDeviceIcon(deviceInfo.deviceType)}
+                  <span className="text-slate-400 dark:text-slate-500 font-semibold text-[10px] uppercase">DEVICE:</span>
+                  <span className="text-slate-900 dark:text-white font-bold truncate max-w-[220px] sm:max-w-xs" title={deviceInfo.deviceName}>
+                    {deviceInfo.deviceName}
+                  </span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800 uppercase font-semibold">
+                    {deviceInfo.deviceType}
+                  </span>
+                </div>
+
+                {/* Right: Client IP & ISP */}
+                <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                  <Globe className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className="text-slate-400 dark:text-slate-500 font-semibold text-[10px] uppercase">ISP:</span>
+                  <span className="text-slate-800 dark:text-slate-200 font-medium truncate max-w-xs">
+                    {clientInfo?.isp || 'Broadband Network'}
+                  </span>
+                  {clientInfo?.ip && (
+                    <>
+                      <span aria-hidden="true" className="text-slate-300 dark:text-slate-700">·</span>
+                      <span className="text-cyan-700 dark:text-cyan-400 font-semibold">{clientInfo.ip}</span>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -427,6 +565,9 @@ export default function App() {
                 completedView={completedView}
                 onToggleCompletedView={setCompletedView}
                 resolvedTheme={resolvedTheme}
+                scaleRange={config.scaleRange || 'auto'}
+                onScaleRangeChange={(rng) => setConfig({ ...config, scaleRange: rng })}
+                deviceInfo={deviceInfo}
               />
 
               {/* Cyber Central Launch Button */}
@@ -513,7 +654,7 @@ export default function App() {
             {/* Connection Diagnostics Preview */}
             {currentResult && (
               <div className="pt-2">
-                <NetworkDiagnostics result={currentResult} clientInfo={clientInfo} />
+                <NetworkDiagnostics result={currentResult} clientInfo={clientInfo} deviceInfo={deviceInfo} />
               </div>
             )}
           </div>
@@ -542,7 +683,7 @@ export default function App() {
               )}
             </div>
 
-            <NetworkDiagnostics result={currentResult} clientInfo={clientInfo} />
+            <NetworkDiagnostics result={currentResult} clientInfo={clientInfo} deviceInfo={deviceInfo} />
 
             {/* Deep Technical Explanations */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">

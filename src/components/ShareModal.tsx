@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Copy, Check, Share2 } from 'lucide-react';
+import { X, Copy, Check, Share2, Smartphone, Laptop, Monitor, Tablet } from 'lucide-react';
 import { SpeedTestResult } from '../types/speedtest';
 
 interface ShareModalProps {
@@ -19,18 +19,35 @@ export const ShareModal: React.FC<ShareModalProps> = ({
 
   if (!isOpen || !result) return null;
 
-  const summaryText = `🚀 VelocityNet Speed Test Results:
+  const device = result.deviceInfo || result.clientInfo?.device;
+
+  const summaryText = `🚀 VelocityNet Internet Speed Test:
+📱 Device: ${device?.deviceName || 'Standard Device'}
 ⬇️ Download: ${result.downloadMbps} Mbps
 ⬆️ Upload: ${result.uploadMbps} Mbps
 ⏱️ Latency: ${result.pingMs} ms (Jitter: ${result.jitterMs} ms)
-🛡️ Grade: ${result.grade}
-📍 Server: ${result.server.name}
+🛡️ Link Quality Grade: ${result.grade}
+📍 Target Node: ${result.server.name}
 🌐 ISP: ${result.clientInfo?.isp || 'Broadband'}`;
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(summaryText);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const getDeviceIcon = (type?: string) => {
+    switch (type) {
+      case 'mobile':
+        return <Smartphone className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />;
+      case 'tablet':
+        return <Tablet className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />;
+      case 'laptop':
+        return <Laptop className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />;
+      case 'desktop':
+      default:
+        return <Monitor className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />;
+    }
   };
 
   return (
@@ -45,14 +62,14 @@ export const ShareModal: React.FC<ShareModalProps> = ({
 
         <div className="flex items-center gap-2 mb-4">
           <Share2 className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
-          <h3 className="text-base font-semibold text-slate-900 dark:text-white">Share Telemetry Report</h3>
+          <h3 className="text-base font-semibold text-slate-900 dark:text-white font-display">Share Telemetry Report</h3>
         </div>
 
         {/* Visual Share Card */}
         <div className="bg-slate-50 dark:bg-[#07090e] border border-slate-200 dark:border-slate-800 rounded-xl p-5 mb-5 space-y-4 shadow-xs">
           <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
             <div>
-              <span className="text-sm font-bold tracking-tight text-slate-900 dark:text-white block">
+              <span className="text-sm font-bold tracking-tight text-slate-900 dark:text-white block font-display">
                 VelocityNet Telemetry
               </span>
               <span className="text-[11px] font-mono-data text-slate-500">
@@ -63,6 +80,15 @@ export const ShareModal: React.FC<ShareModalProps> = ({
               Grade {result.grade}
             </span>
           </div>
+
+          {/* Device badge */}
+          {device && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono-data text-slate-700 dark:text-slate-300">
+              {getDeviceIcon(device.deviceType)}
+              <span className="text-slate-400 uppercase text-[10px]">DEVICE:</span>
+              <span className="font-semibold truncate">{device.deviceName}</span>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3 text-center">
             <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-2xs">
@@ -86,15 +112,16 @@ export const ShareModal: React.FC<ShareModalProps> = ({
             <div>Jitter: <strong className="text-slate-900 dark:text-slate-200">{result.jitterMs} ms</strong></div>
           </div>
 
-          <div className="text-[11px] text-slate-500 truncate">
-            Node: {result.server.name}
+          <div className="text-[11px] text-slate-500 truncate flex items-center justify-between">
+            <span>Node: {result.server.name}</span>
+            <span>ISP: {result.clientInfo?.isp || 'Broadband'}</span>
           </div>
         </div>
 
         {/* Copy Button */}
         <button
           onClick={copyToClipboard}
-          className="w-full py-2.5 px-4 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold text-sm rounded-xl flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-sm"
+          className="w-full py-2.5 px-4 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold text-sm rounded-xl flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-sm font-display tracking-wide uppercase"
         >
           {copied ? (
             <>

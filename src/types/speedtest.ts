@@ -1,3 +1,5 @@
+import { DeviceTelemetryInfo } from '../utils/device-detection';
+
 export type TestPhase = 'idle' | 'ping' | 'download' | 'upload' | 'completed' | 'error';
 
 export interface ServerTarget {
@@ -25,6 +27,7 @@ export interface ClientNetworkInfo {
   downlink?: number;
   rtt?: number;
   serverRegion?: string;
+  device?: DeviceTelemetryInfo;
 }
 
 export interface TelemetryPoint {
@@ -61,6 +64,7 @@ export interface SpeedTestResult {
   grade: ConnectionGrade;
   bufferbloatGrade: 'A+' | 'A' | 'B' | 'C' | 'D';
   clientInfo?: ClientNetworkInfo;
+  deviceInfo?: DeviceTelemetryInfo;
   suitability: ActivitySuitability;
   telemetryHistory: TelemetryPoint[];
 }
@@ -71,4 +75,5 @@ export interface SpeedTestConfig {
   concurrency: number; // 1, 4, 8
   soundEnabled: boolean;
   unit: 'Mbps' | 'MB/s' | 'Gbps';
+  scaleRange?: 'auto' | '50' | '100' | '250' | '500' | '1000';
 }

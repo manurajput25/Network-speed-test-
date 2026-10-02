@@ -216,6 +216,35 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
               </div>
             </div>
 
+            {/* 6. Meter Scale Range Mode */}
+            <div>
+              <label className="text-xs font-mono-data uppercase text-slate-500 dark:text-slate-400 block mb-2.5">
+                Speedometer Scale Calibration
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: 'auto', label: 'Adaptive Auto' },
+                  { id: '50', label: '50 Mbps Max' },
+                  { id: '100', label: '100 Mbps Max' },
+                  { id: '250', label: '250 Mbps Max' },
+                  { id: '500', label: '500 Mbps Max' },
+                  { id: '1000', label: '1000 Mbps Max' },
+                ].map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => onConfigChange({ ...config, scaleRange: s.id as any })}
+                    className={`py-2 px-2 rounded-lg border text-center font-mono-data text-[11px] transition-all cursor-pointer ${
+                      (config.scaleRange || 'auto') === s.id
+                        ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 font-semibold'
+                        : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#07090e]/60 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* 6. Sound Toggle */}
             <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-2">

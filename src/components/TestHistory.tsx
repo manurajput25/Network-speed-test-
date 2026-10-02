@@ -1,5 +1,5 @@
 import React from 'react';
-import { History, Trash2, Download } from 'lucide-react';
+import { History, Trash2, Download, Smartphone, Laptop, Monitor, Tablet } from 'lucide-react';
 import { SpeedTestResult } from '../types/speedtest';
 
 interface TestHistoryProps {
@@ -21,12 +21,27 @@ export const TestHistory: React.FC<TestHistoryProps> = ({
     return `${mbps.toFixed(2)} Mbps`;
   };
 
+  const getDeviceIcon = (type?: string) => {
+    switch (type) {
+      case 'mobile':
+        return <Smartphone className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" />;
+      case 'tablet':
+        return <Tablet className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />;
+      case 'laptop':
+        return <Laptop className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" />;
+      case 'desktop':
+      default:
+        return <Monitor className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" />;
+    }
+  };
+
   const exportCSV = () => {
     if (history.length === 0) return;
-    const headers = ['Timestamp', 'Date', 'Server', 'Ping (ms)', 'Jitter (ms)', 'Download (Mbps)', 'Upload (Mbps)', 'Grade'];
+    const headers = ['Timestamp', 'Date', 'Device', 'Server', 'Ping (ms)', 'Jitter (ms)', 'Download (Mbps)', 'Upload (Mbps)', 'Grade'];
     const rows = history.map((h) => [
       h.timestamp,
       new Date(h.timestamp).toISOString(),
+      `"${h.deviceInfo?.deviceName || h.clientInfo?.device?.deviceName || 'Standard Device'}"`,
       `"${h.server.name}"`,
       h.pingMs,
       h.jitterMs,
@@ -111,6 +126,7 @@ export const TestHistory: React.FC<TestHistoryProps> = ({
           <thead>
             <tr className="border-b border-slate-200 dark:border-slate-800/80 text-slate-500 dark:text-slate-400 font-mono-data text-[11px]">
               <th className="pb-2.5 font-medium">DATE / TIME</th>
+              <th className="pb-2.5 font-medium">DEVICE</th>
               <th className="pb-2.5 font-medium">SERVER NODE</th>
               <th className="pb-2.5 font-medium text-right">DOWNLOAD</th>
               <th className="pb-2.5 font-medium text-right">UPLOAD</th>
@@ -119,50 +135,61 @@ export const TestHistory: React.FC<TestHistoryProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/40">
-            {history.slice(0, 10).map((item) => (
-              <tr
-                key={item.id}
-                onClick={() => onSelectResult(item)}
-                className="hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer transition-colors group"
-              >
-                <td className="py-2.5 font-mono-data text-slate-500 dark:text-slate-400">
-                  {new Date(item.timestamp).toLocaleDateString([], {
-                    month: 'short',
-                    day: 'numeric',
-                  })}{' '}
-                  ·{' '}
-                  {new Date(item.timestamp).toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </td>
-                <td className="py-2.5 text-slate-800 dark:text-slate-300 font-medium">
-                  {item.server.name}
-                </td>
-                <td className="py-2.5 text-right font-mono-data font-semibold text-cyan-700 dark:text-cyan-400 tabular-nums">
-                  {formatSpeed(item.downloadMbps)}
-                </td>
-                <td className="py-2.5 text-right font-mono-data font-semibold text-emerald-700 dark:text-emerald-400 tabular-nums">
-                  {formatSpeed(item.uploadMbps)}
-                </td>
-                <td className="py-2.5 text-right font-mono-data text-slate-700 dark:text-slate-300 tabular-nums">
-                  {item.pingMs} ms
-                </td>
-                <td className="py-2.5 text-center">
-                  <span
-                    className={`inline-block px-2 py-0.5 rounded text-[10px] font-mono-data font-bold border ${
-                      item.grade === 'A+' || item.grade === 'A'
-                        ? 'text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10'
-                        : item.grade === 'B'
-                        ? 'text-cyan-700 dark:text-cyan-400 border-cyan-300 dark:border-cyan-500/30 bg-cyan-50 dark:bg-cyan-500/10'
-                        : 'text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10'
-                    }`}
-                  >
-                    {item.grade}
-                  </span>
-                </td>
-              </tr>
-            ))}
+            {history.slice(0, 15).map((item) => {
+              const dev = item.deviceInfo || item.clientInfo?.device;
+              return (
+                <tr
+                  key={item.id}
+                  onClick={() => onSelectResult(item)}
+                  className="hover:bg-slate-50 dark:hover:bg-slate-800/30 cursor-pointer transition-colors group"
+                >
+                  <td className="py-2.5 font-mono-data text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                    {new Date(item.timestamp).toLocaleDateString([], {
+                      month: 'short',
+                      day: 'numeric',
+                    })}{' '}
+                    ·{' '}
+                    {new Date(item.timestamp).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </td>
+                  <td className="py-2.5 text-slate-700 dark:text-slate-300 font-medium whitespace-nowrap">
+                    <div className="flex items-center gap-1.5">
+                      {getDeviceIcon(dev?.deviceType)}
+                      <span className="truncate max-w-[130px]" title={dev?.deviceName || 'Device'}>
+                        {dev?.deviceName ? dev.deviceName.replace(/\s*\(.*\)/, '') : 'Device'}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="py-2.5 text-slate-800 dark:text-slate-300 font-medium whitespace-nowrap">
+                    {item.server.name.replace('Global ', '').replace(' Node', '')}
+                  </td>
+                  <td className="py-2.5 text-right font-mono-data font-semibold text-cyan-700 dark:text-cyan-400 tabular-nums whitespace-nowrap">
+                    {formatSpeed(item.downloadMbps)}
+                  </td>
+                  <td className="py-2.5 text-right font-mono-data font-semibold text-emerald-700 dark:text-emerald-400 tabular-nums whitespace-nowrap">
+                    {formatSpeed(item.uploadMbps)}
+                  </td>
+                  <td className="py-2.5 text-right font-mono-data text-slate-700 dark:text-slate-300 tabular-nums whitespace-nowrap">
+                    {item.pingMs} ms
+                  </td>
+                  <td className="py-2.5 text-center whitespace-nowrap">
+                    <span
+                      className={`inline-block px-2 py-0.5 rounded text-[10px] font-mono-data font-bold border ${
+                        item.grade === 'A+' || item.grade === 'A'
+                          ? 'text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10'
+                          : item.grade === 'B'
+                          ? 'text-cyan-700 dark:text-cyan-400 border-cyan-300 dark:border-cyan-500/30 bg-cyan-50 dark:bg-cyan-500/10'
+                          : 'text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10'
+                      }`}
+                    >
+                      {item.grade}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

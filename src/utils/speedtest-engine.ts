@@ -7,6 +7,7 @@ import {
   ActivitySuitability,
 } from '../types/speedtest';
 import { soundManager } from './audio';
+import { detectDeviceTelemetry, detectDeviceTelemetrySync } from './device-detection';
 
 export const DEFAULT_SERVERS: ServerTarget[] = [
   {
@@ -45,11 +46,15 @@ export const DEFAULT_SERVERS: ServerTarget[] = [
 ];
 
 export async function fetchClientInfo(): Promise<ClientNetworkInfo> {
+  // Extract device telemetry immediately so device is NEVER null or missing
+  const device = detectDeviceTelemetrySync();
+
   const info: ClientNetworkInfo = {
-    ip: 'Unknown',
-    isp: 'Standard Broadband',
-    country: 'Detecting...',
+    ip: '127.0.0.1',
+    isp: 'Detecting ISP...',
+    country: 'Detecting Location...',
     city: '',
+    device,
   };
 
   // 1. First fetch server-observed IP from backend
@@ -57,7 +62,7 @@ export async function fetchClientInfo(): Promise<ClientNetworkInfo> {
     const res = await fetch('/api/client-info', { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
-      info.ip = data.ip;
+      if (data.ip && data.ip !== '127.0.0.1') info.ip = data.ip;
       info.userAgent = data.userAgent;
       info.serverRegion = data.serverRegion;
     }
@@ -65,7 +70,7 @@ export async function fetchClientInfo(): Promise<ClientNetworkInfo> {
     // Continue with public APIs
   }
 
-  // 2. Fetch ISP and Geo information from ipwho.is or Cloudflare meta
+  // 2. Fetch ISP and Geo location from Cloudflare meta or ipwho.is
   try {
     const cfMeta = await fetch('https://speed.cloudflare.com/meta', {
       headers: { 'Accept': 'application/json' },
@@ -76,28 +81,53 @@ export async function fetchClientInfo(): Promise<ClientNetworkInfo> {
       if (cfData.asOrganization) info.isp = cfData.asOrganization;
       if (cfData.city) info.city = cfData.city;
       if (cfData.country) info.country = cfData.country;
+      if (cfData.region) info.countryCode = cfData.region;
       if (cfData.asn) info.asn = `AS${cfData.asn}`;
-      return info;
     }
   } catch {
-    // Fallback to ipapi.co
+    // Fallback to ipwho.is
   }
 
-  try {
-    const res = await fetch('https://ipwho.is/', { cache: 'no-store' });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.success) {
-        info.ip = data.ip || info.ip;
-        info.isp = data.connection?.isp || data.connection?.org || 'Broadband ISP';
-        info.city = data.city;
-        info.country = data.country;
-        info.countryCode = data.country_code;
-        info.asn = data.connection?.asn ? `AS${data.connection.asn}` : undefined;
+  // If ISP or location still missing, try ipwho.is
+  if (!info.isp || info.isp === 'Detecting ISP...' || !info.city) {
+    try {
+      const res = await fetch('https://ipwho.is/', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          if (data.ip) info.ip = data.ip;
+          info.isp = data.connection?.isp || data.connection?.org || info.isp;
+          if (data.city) info.city = data.city;
+          if (data.country) info.country = data.country;
+          if (data.country_code) info.countryCode = data.country_code;
+          if (data.connection?.asn) info.asn = `AS${data.connection.asn}`;
+        }
       }
+    } catch {
+      // Keep fallback
     }
-  } catch {
-    // Keep fallback
+  }
+
+  // Fallback: Use browser timezone for location if still unresolved
+  if (!info.country || info.country === 'Detecting Location...' || !info.city) {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (tz) {
+        const parts = tz.split('/');
+        const cityPart = parts[parts.length - 1]?.replace(/_/g, ' ');
+        const regionPart = parts[0]?.replace(/_/g, ' ');
+        if (!info.city && cityPart) info.city = cityPart;
+        if ((!info.country || info.country === 'Detecting Location...') && regionPart) {
+          info.country = regionPart;
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  if (info.isp === 'Detecting ISP...') {
+    info.isp = 'Broadband Network';
   }
 
   // Network information API if available in browser
@@ -106,6 +136,14 @@ export async function fetchClientInfo(): Promise<ClientNetworkInfo> {
     info.effectiveType = navConn.effectiveType;
     info.downlink = navConn.downlink;
     info.rtt = navConn.rtt;
+  }
+
+  // Upgrade device with async high-entropy values if available
+  try {
+    const refinedDevice = await detectDeviceTelemetry();
+    info.device = refinedDevice;
+  } catch {
+    // Keep sync device
   }
 
   return info;
@@ -262,6 +300,7 @@ export class SpeedTestEngine {
         grade,
         bufferbloatGrade,
         clientInfo,
+        deviceInfo: clientInfo.device,
         suitability,
         telemetryHistory,
       };
