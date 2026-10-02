@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Copy, Check, Share2, ArrowDown, ArrowUp, Activity } from 'lucide-react';
+import { X, Copy, Check, Share2 } from 'lucide-react';
 import { SpeedTestResult } from '../types/speedtest';
 
 interface ShareModalProps {
@@ -34,56 +34,56 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
-      <div className="bg-[#0b0e17] border border-slate-700/80 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+      <div className="bg-white dark:bg-[#0b0e17] border border-slate-200 dark:border-slate-700/80 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+          className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
 
         <div className="flex items-center gap-2 mb-4">
-          <Share2 className="w-5 h-5 text-cyan-400" />
-          <h3 className="text-base font-semibold text-white">Share Telemetry Report</h3>
+          <Share2 className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
+          <h3 className="text-base font-semibold text-slate-900 dark:text-white">Share Telemetry Report</h3>
         </div>
 
         {/* Visual Share Card */}
-        <div className="bg-[#07090e] border border-slate-800 rounded-xl p-5 mb-5 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="bg-slate-50 dark:bg-[#07090e] border border-slate-200 dark:border-slate-800 rounded-xl p-5 mb-5 space-y-4 shadow-xs">
+          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
             <div>
-              <span className="text-sm font-bold tracking-tight text-white block">
+              <span className="text-sm font-bold tracking-tight text-slate-900 dark:text-white block">
                 VelocityNet Telemetry
               </span>
               <span className="text-[11px] font-mono-data text-slate-500">
                 {new Date(result.timestamp).toLocaleDateString()} · {new Date(result.timestamp).toLocaleTimeString()}
               </span>
             </div>
-            <span className="text-sm font-mono-data font-bold px-2 py-0.5 rounded border border-cyan-500/40 text-cyan-400 bg-cyan-500/10">
+            <span className="text-sm font-mono-data font-bold px-2 py-0.5 rounded border border-cyan-400 dark:border-cyan-500/40 text-cyan-700 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-500/10">
               Grade {result.grade}
             </span>
           </div>
 
           <div className="grid grid-cols-2 gap-3 text-center">
-            <div className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800/80">
-              <span className="text-[10px] font-mono-data text-slate-400 uppercase block">Download</span>
-              <span className="text-xl font-mono-data font-bold text-cyan-400">
+            <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-2xs">
+              <span className="text-[10px] font-mono-data text-slate-500 dark:text-slate-400 uppercase block">Download</span>
+              <span className="text-xl font-mono-data font-bold text-cyan-700 dark:text-cyan-400">
                 {result.downloadMbps}
               </span>
               <span className="text-[10px] font-mono-data text-slate-500 ml-1">Mbps</span>
             </div>
-            <div className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800/80">
-              <span className="text-[10px] font-mono-data text-slate-400 uppercase block">Upload</span>
-              <span className="text-xl font-mono-data font-bold text-emerald-400">
+            <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 shadow-2xs">
+              <span className="text-[10px] font-mono-data text-slate-500 dark:text-slate-400 uppercase block">Upload</span>
+              <span className="text-xl font-mono-data font-bold text-emerald-700 dark:text-emerald-400">
                 {result.uploadMbps}
               </span>
               <span className="text-[10px] font-mono-data text-slate-500 ml-1">Mbps</span>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 text-xs font-mono-data text-slate-400 pt-2 border-t border-slate-800/60">
-            <div>Latency: <strong className="text-slate-200">{result.pingMs} ms</strong></div>
-            <div>Jitter: <strong className="text-slate-200">{result.jitterMs} ms</strong></div>
+          <div className="grid grid-cols-2 gap-2 text-xs font-mono-data text-slate-600 dark:text-slate-400 pt-2 border-t border-slate-200 dark:border-slate-800/60">
+            <div>Latency: <strong className="text-slate-900 dark:text-slate-200">{result.pingMs} ms</strong></div>
+            <div>Jitter: <strong className="text-slate-900 dark:text-slate-200">{result.jitterMs} ms</strong></div>
           </div>
 
           <div className="text-[11px] text-slate-500 truncate">
@@ -94,7 +94,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
         {/* Copy Button */}
         <button
           onClick={copyToClipboard}
-          className="w-full py-2.5 px-4 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold text-sm rounded-xl flex items-center justify-center gap-2 transition-colors cursor-pointer"
+          className="w-full py-2.5 px-4 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold text-sm rounded-xl flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-sm"
         >
           {copied ? (
             <>

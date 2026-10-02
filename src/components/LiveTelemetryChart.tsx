@@ -6,14 +6,17 @@ interface LiveTelemetryChartProps {
   telemetry: TelemetryPoint[];
   currentPhase: string;
   unit: 'Mbps' | 'MB/s' | 'Gbps';
+  resolvedTheme?: 'dark' | 'light';
 }
 
 export const LiveTelemetryChart: React.FC<LiveTelemetryChartProps> = ({
   telemetry,
   currentPhase,
   unit,
+  resolvedTheme = 'dark',
 }) => {
   const [hoverPoint, setHoverPoint] = useState<TelemetryPoint | null>(null);
+  const isDark = resolvedTheme === 'dark';
 
   // SVG dimensions
   const width = 640;
@@ -75,41 +78,41 @@ export const LiveTelemetryChart: React.FC<LiveTelemetryChartProps> = ({
   const gridSteps = [0, maxMbps * 0.33, maxMbps * 0.66, maxMbps];
 
   return (
-    <div className="w-full bg-[#080c15]/95 border border-slate-800/90 rounded-2xl p-4 sm:p-5 relative overflow-hidden shadow-2xl">
+    <div className="w-full bg-white dark:bg-[#080c15]/95 border border-slate-200 dark:border-slate-800/90 rounded-2xl p-4 sm:p-5 relative overflow-hidden shadow-xs dark:shadow-2xl">
       {/* Background Cyber Grid Accent */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#0f172a_1px,transparent_1px),linear-gradient(to_bottom,#0f172a_1px,transparent_1px)] bg-[size:24px_24px] opacity-25 pointer-events-none" />
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#f1f5f9_1px,transparent_1px),linear-gradient(to_bottom,#f1f5f9_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,#0f172a_1px,transparent_1px),linear-gradient(to_bottom,#0f172a_1px,transparent_1px)] bg-[size:24px_24px] opacity-40 dark:opacity-25 pointer-events-none" />
 
       {/* Header telemetry ribbon */}
       <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-2.5">
-          <div className="p-1 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+          <div className="p-1 rounded bg-cyan-50 dark:bg-cyan-500/10 border border-cyan-200 dark:border-cyan-500/30 text-cyan-600 dark:text-cyan-400">
             <Activity className="w-3.5 h-3.5" />
           </div>
           <div>
-            <h4 className="text-xs font-bold font-display uppercase tracking-widest text-slate-200">
-              SPECTRAL BANDWIDTH OSCILLOSCOPE
+            <h4 className="text-xs font-bold font-display uppercase tracking-widest text-slate-800 dark:text-slate-200">
+              BANDWIDTH OSCILLOSCOPE
             </h4>
           </div>
         </div>
 
         <div className="flex items-center gap-4 text-xs font-mono-data">
           <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1.5 text-cyan-400 font-semibold">
-              <span className="w-2.5 h-0.5 bg-cyan-400 rounded-full shadow-[0_0_8px_#00f0ff]" />
+            <span className="flex items-center gap-1.5 text-cyan-700 dark:text-cyan-400 font-semibold">
+              <span className="w-2.5 h-0.5 bg-cyan-500 dark:bg-cyan-400 rounded-full shadow-xs dark:shadow-[0_0_8px_#00f0ff]" />
               CH.1 DOWN
             </span>
-            <span className="flex items-center gap-1.5 text-emerald-400 font-semibold">
-              <span className="w-2.5 h-0.5 bg-emerald-400 rounded-full shadow-[0_0_8px_#10e599]" />
+            <span className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-semibold">
+              <span className="w-2.5 h-0.5 bg-emerald-500 dark:bg-emerald-400 rounded-full shadow-xs dark:shadow-[0_0_8px_#10e599]" />
               CH.2 UP
             </span>
           </div>
 
           {hoverPoint ? (
-            <span className="text-slate-300 bg-slate-900/90 px-2 py-0.5 rounded border border-slate-800">
-              <strong className="text-white">{hoverPoint.smoothMbps.toFixed(2)}</strong> {unit}
+            <span className="text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-900/90 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-800">
+              <strong className="text-slate-900 dark:text-white">{hoverPoint.smoothMbps.toFixed(2)}</strong> {unit}
             </span>
           ) : (
-            <span className="text-[10px] text-slate-500 uppercase">
+            <span className="text-[10px] text-slate-400 dark:text-slate-500 uppercase">
               {currentPhase === 'idle' ? 'STANDBY' : 'REAL-TIME TRACE'}
             </span>
           )}
@@ -126,12 +129,12 @@ export const LiveTelemetryChart: React.FC<LiveTelemetryChartProps> = ({
         >
           <defs>
             <linearGradient id="dlOscGrad" x1="0%" y1="0%" x2="0%" y2="1">
-              <stop offset="0%" stopColor="#00f0ff" stopOpacity="0.35" />
-              <stop offset="100%" stopColor="#00f0ff" stopOpacity="0.0" />
+              <stop offset="0%" stopColor={isDark ? "#00f0ff" : "#0284c7"} stopOpacity={isDark ? "0.35" : "0.2"} />
+              <stop offset="100%" stopColor={isDark ? "#00f0ff" : "#0284c7"} stopOpacity="0.0" />
             </linearGradient>
             <linearGradient id="ulOscGrad" x1="0%" y1="0%" x2="0%" y2="1">
-              <stop offset="0%" stopColor="#10e599" stopOpacity="0.32" />
-              <stop offset="100%" stopColor="#10e599" stopOpacity="0.0" />
+              <stop offset="0%" stopColor={isDark ? "#10e599" : "#059669"} stopOpacity={isDark ? "0.32" : "0.2"} />
+              <stop offset="100%" stopColor={isDark ? "#10e599" : "#059669"} stopOpacity="0.0" />
             </linearGradient>
             <filter id="oscLineGlow" x="-20%" y="-20%" width="140%" height="140%">
               <feGaussianBlur stdDeviation="2.5" result="blur" />
@@ -152,7 +155,7 @@ export const LiveTelemetryChart: React.FC<LiveTelemetryChartProps> = ({
                   y1={y}
                   x2={width - padding.right}
                   y2={y}
-                  stroke="#172033"
+                  stroke={isDark ? "#172033" : "#f1f5f9"}
                   strokeWidth="1"
                   strokeDasharray="3 3"
                 />
@@ -160,7 +163,7 @@ export const LiveTelemetryChart: React.FC<LiveTelemetryChartProps> = ({
                   x={padding.left - 6}
                   y={y + 3}
                   textAnchor="end"
-                  className="text-[9px] font-mono-data fill-slate-500 font-bold"
+                  className="text-[9px] font-mono-data fill-slate-400 dark:fill-slate-500 font-bold"
                 >
                   {Math.round(val)}
                 </text>
@@ -174,13 +177,13 @@ export const LiveTelemetryChart: React.FC<LiveTelemetryChartProps> = ({
             y1={height - padding.bottom}
             x2={width - padding.right}
             y2={height - padding.bottom}
-            stroke="#1e293b"
+            stroke={isDark ? "#1e293b" : "#e2e8f0"}
             strokeWidth="1"
           />
           <text
             x={padding.left}
             y={height - 6}
-            className="text-[9px] font-mono-data fill-slate-500"
+            className="text-[9px] font-mono-data fill-slate-400 dark:fill-slate-500"
           >
             T+0.0s
           </text>
@@ -188,7 +191,7 @@ export const LiveTelemetryChart: React.FC<LiveTelemetryChartProps> = ({
             x={width - padding.right}
             y={height - 6}
             textAnchor="end"
-            className="text-[9px] font-mono-data fill-slate-500"
+            className="text-[9px] font-mono-data fill-slate-400 dark:fill-slate-500"
           >
             T+{(maxTime / 1000).toFixed(1)}s
           </text>
@@ -199,11 +202,11 @@ export const LiveTelemetryChart: React.FC<LiveTelemetryChartProps> = ({
             <path
               d={dlLine}
               fill="none"
-              stroke="#00f0ff"
+              stroke={isDark ? "#00f0ff" : "#0284c7"}
               strokeWidth="2.5"
               strokeLinecap="round"
               strokeLinejoin="round"
-              filter="url(#oscLineGlow)"
+              filter={isDark ? "url(#oscLineGlow)" : undefined}
             />
           )}
 
@@ -213,11 +216,11 @@ export const LiveTelemetryChart: React.FC<LiveTelemetryChartProps> = ({
             <path
               d={ulLine}
               fill="none"
-              stroke="#10e599"
+              stroke={isDark ? "#10e599" : "#059669"}
               strokeWidth="2.5"
               strokeLinecap="round"
               strokeLinejoin="round"
-              filter="url(#oscLineGlow)"
+              filter={isDark ? "url(#oscLineGlow)" : undefined}
             />
           )}
 
@@ -236,7 +239,7 @@ export const LiveTelemetryChart: React.FC<LiveTelemetryChartProps> = ({
                     y1={padding.top}
                     x2={x}
                     y2={height - padding.bottom}
-                    stroke={isDl ? '#00f0ff' : '#10e599'}
+                    stroke={isDl ? (isDark ? '#00f0ff' : '#0284c7') : (isDark ? '#10e599' : '#059669')}
                     strokeWidth="1"
                     strokeDasharray="2 2"
                     strokeOpacity="0.6"
@@ -246,10 +249,10 @@ export const LiveTelemetryChart: React.FC<LiveTelemetryChartProps> = ({
                     cx={Math.min(Math.max(x, padding.left), width - padding.right)}
                     cy={Math.max(y, padding.top)}
                     r="4.5"
-                    fill={isDl ? '#00f0ff' : '#10e599'}
-                    stroke="#ffffff"
+                    fill={isDl ? (isDark ? '#00f0ff' : '#0284c7') : (isDark ? '#10e599' : '#059669')}
+                    stroke={isDark ? "#ffffff" : "#0f172a"}
                     strokeWidth="1.5"
-                    filter="url(#oscLineGlow)"
+                    filter={isDark ? "url(#oscLineGlow)" : undefined}
                   />
                 </g>
               );

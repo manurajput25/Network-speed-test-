@@ -14,6 +14,7 @@ interface SpeedGaugeProps {
   uploadMbps?: number;
   completedView?: 'download' | 'upload';
   onToggleCompletedView?: (view: 'download' | 'upload') => void;
+  resolvedTheme?: 'dark' | 'light';
 }
 
 interface ScaleDefinition {
@@ -40,7 +41,10 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
   uploadMbps = 0,
   completedView = 'download',
   onToggleCompletedView,
+  resolvedTheme = 'dark',
 }) => {
+  const isDark = resolvedTheme === 'dark';
+
   // Geometry Constants
   const cx = 200;
   const cy = 200;
@@ -163,18 +167,18 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
     switch (phase) {
       case 'ping':
         return {
-          primary: '#38bdf8',
-          glow: 'rgba(56, 189, 248, 0.6)',
-          ambient: 'rgba(56, 189, 248, 0.15)',
+          primary: isDark ? '#38bdf8' : '#0284c7',
+          glow: isDark ? 'rgba(56, 189, 248, 0.6)' : 'rgba(2, 132, 199, 0.3)',
+          ambient: isDark ? 'rgba(56, 189, 248, 0.15)' : 'rgba(2, 132, 199, 0.08)',
           label: 'MEASURING LATENCY',
           tier: 'QUANTUM PROBE',
-          colorClass: 'text-sky-400',
+          colorClass: isDark ? 'text-sky-400' : 'text-sky-600',
         };
       case 'download':
         return {
-          primary: '#00f0ff',
-          glow: 'rgba(0, 240, 255, 0.65)',
-          ambient: 'rgba(0, 240, 255, 0.2)',
+          primary: isDark ? '#00f0ff' : '#0284c7',
+          glow: isDark ? 'rgba(0, 240, 255, 0.65)' : 'rgba(2, 132, 199, 0.35)',
+          ambient: isDark ? 'rgba(0, 240, 255, 0.2)' : 'rgba(2, 132, 199, 0.08)',
           label: 'STREAMING DOWNLOAD',
           tier:
             activeSpeedMbps > 500
@@ -184,43 +188,43 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
               : activeSpeedMbps > 50
               ? 'FAST BROADBAND'
               : 'STANDARD BROADBAND',
-          colorClass: 'text-[#00f0ff]',
+          colorClass: isDark ? 'text-[#00f0ff]' : 'text-cyan-700',
         };
       case 'upload':
         return {
-          primary: '#10e599',
-          glow: 'rgba(16, 229, 153, 0.65)',
-          ambient: 'rgba(16, 229, 153, 0.2)',
+          primary: isDark ? '#10e599' : '#059669',
+          glow: isDark ? 'rgba(16, 229, 153, 0.65)' : 'rgba(5, 150, 105, 0.35)',
+          ambient: isDark ? 'rgba(16, 229, 153, 0.2)' : 'rgba(5, 150, 105, 0.08)',
           label: 'BUFFERING UPLOAD',
           tier: activeSpeedMbps > 100 ? 'GIGABIT UPSTREAM' : 'HIGH CAPACITY',
-          colorClass: 'text-[#10e599]',
+          colorClass: isDark ? 'text-[#10e599]' : 'text-emerald-700',
         };
       case 'completed':
         return {
-          primary: isUploadActive ? '#10e599' : '#00f0ff',
-          glow: isUploadActive ? 'rgba(16, 229, 153, 0.5)' : 'rgba(0, 240, 255, 0.5)',
-          ambient: 'rgba(0, 240, 255, 0.12)',
+          primary: isUploadActive ? (isDark ? '#10e599' : '#059669') : (isDark ? '#00f0ff' : '#0284c7'),
+          glow: isUploadActive ? (isDark ? 'rgba(16, 229, 153, 0.5)' : 'rgba(5, 150, 105, 0.25)') : (isDark ? 'rgba(0, 240, 255, 0.5)' : 'rgba(2, 132, 199, 0.25)'),
+          ambient: isDark ? 'rgba(0, 240, 255, 0.12)' : 'rgba(2, 132, 199, 0.05)',
           label: isUploadActive ? 'UPLOAD RESULT' : 'DOWNLOAD RESULT',
           tier: 'TEST COMPLETED',
-          colorClass: isUploadActive ? 'text-[#10e599]' : 'text-[#00f0ff]',
+          colorClass: isUploadActive ? (isDark ? 'text-[#10e599]' : 'text-emerald-700') : (isDark ? 'text-[#00f0ff]' : 'text-cyan-700'),
         };
       case 'error':
         return {
           primary: '#ff3366',
           glow: 'rgba(255, 51, 102, 0.6)',
-          ambient: 'rgba(255, 51, 102, 0.2)',
+          ambient: 'rgba(255, 51, 102, 0.15)',
           label: 'CONNECTION TIMEOUT',
           tier: 'ERROR',
-          colorClass: 'text-rose-400',
+          colorClass: 'text-rose-500',
         };
       default:
         return {
-          primary: '#475569',
+          primary: isDark ? '#475569' : '#94a3b8',
           glow: 'transparent',
-          ambient: 'rgba(14, 165, 233, 0.05)',
+          ambient: 'transparent',
           label: 'NEURAL LINK STANDBY',
           tier: 'READY TO SCAN',
-          colorClass: 'text-slate-400',
+          colorClass: isDark ? 'text-slate-400' : 'text-slate-500',
         };
     }
   };
@@ -236,38 +240,40 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
           className="absolute inset-0 rounded-full transition-opacity duration-700 pointer-events-none"
           style={{
             background: `radial-gradient(circle, ${theme.glow} 0%, ${theme.ambient} 45%, transparent 70%)`,
-            opacity: phase === 'download' || phase === 'upload' || phase === 'completed' ? 0.65 : 0.2,
+            opacity: phase === 'download' || phase === 'upload' || phase === 'completed' ? 0.75 : 0.2,
             filter: 'blur(16px)',
           }}
         />
 
         {/* Ambient Ring Scanlines */}
-        <div className="absolute inset-4 rounded-full border border-cyan-500/10 pointer-events-none" />
-        <div className="absolute inset-10 rounded-full border border-indigo-500/10 pointer-events-none" />
+        <div className="absolute inset-4 rounded-full border border-cyan-500/10 dark:border-cyan-500/10 pointer-events-none" />
+        <div className="absolute inset-10 rounded-full border border-indigo-500/10 dark:border-indigo-500/10 pointer-events-none" />
 
         <svg className="w-full h-full transform" viewBox="0 0 400 400">
           <defs>
+            {/* Download Neon Cyan/Violet Gradient */}
             <linearGradient id="cyberDownloadGrad" x1="0%" y1="100%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#00f0ff" />
-              <stop offset="55%" stopColor="#38bdf8" />
-              <stop offset="100%" stopColor="#a855f7" />
+              <stop offset="0%" stopColor={isDark ? '#00f0ff' : '#0284c7'} />
+              <stop offset="55%" stopColor={isDark ? '#38bdf8' : '#0ea5e9'} />
+              <stop offset="100%" stopColor={isDark ? '#a855f7' : '#6366f1'} />
             </linearGradient>
 
+            {/* Upload Neon Emerald/Cyan Gradient */}
             <linearGradient id="cyberUploadGrad" x1="0%" y1="100%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#10e599" />
-              <stop offset="70%" stopColor="#00f0ff" />
-              <stop offset="100%" stopColor="#0284c7" />
+              <stop offset="0%" stopColor={isDark ? '#10e599' : '#059669'} />
+              <stop offset="70%" stopColor={isDark ? '#00f0ff' : '#0284c7'} />
+              <stop offset="100%" stopColor={isDark ? '#0284c7' : '#0369a1'} />
             </linearGradient>
 
             <linearGradient id="pinNeedleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#ffffff" />
-              <stop offset="40%" stopColor="#e2e8f0" />
-              <stop offset="85%" stopColor={isUploadActive ? '#10e599' : '#00f0ff'} />
-              <stop offset="100%" stopColor="#ffffff" />
+              <stop offset="0%" stopColor={isDark ? '#ffffff' : '#334155'} />
+              <stop offset="40%" stopColor={isDark ? '#e2e8f0' : '#475569'} />
+              <stop offset="85%" stopColor={isUploadActive ? (isDark ? '#10e599' : '#059669') : (isDark ? '#00f0ff' : '#0284c7')} />
+              <stop offset="100%" stopColor={isDark ? '#ffffff' : '#0f172a'} />
             </linearGradient>
 
             <filter id="neonBeamGlow" x="-30%" y="-30%" width="160%" height="160%">
-              <feGaussianBlur stdDeviation="3.5" result="blur1" />
+              <feGaussianBlur stdDeviation={isDark ? "3.5" : "1.5"} result="blur1" />
               <feMerge>
                 <feMergeNode in="blur1" />
                 <feMergeNode in="SourceGraphic" />
@@ -275,7 +281,7 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
             </filter>
 
             <filter id="needleGlow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="2.5" result="glow" />
+              <feGaussianBlur stdDeviation={isDark ? "2.5" : "1"} result="glow" />
               <feMerge>
                 <feMergeNode in="glow" />
                 <feMergeNode in="SourceGraphic" />
@@ -289,18 +295,18 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
             cy={cy}
             r={184}
             fill="none"
-            stroke="#1e293b"
+            stroke={isDark ? '#1e293b' : '#e2e8f0'}
             strokeWidth="1.5"
             strokeDasharray="4 8 1 8"
-            className="opacity-60"
+            className="opacity-70"
           />
 
           {/* 2. Outer Technical Labels */}
-          <g className="text-slate-600 text-[8px] font-mono-data">
-            <text x="32" y="38" fill="#475569">UNIT // {unit}</text>
-            <text x="306" y="38" fill="#475569">CALIBRATED</text>
-            <text x="32" y="375" fill="#475569">0 {unit}</text>
-            <text x="300" y="375" fill="#475569">{scaleDef.points[scaleDef.points.length - 1]} {unit}</text>
+          <g className="text-[8px] font-mono-data">
+            <text x="32" y="38" fill={isDark ? '#475569' : '#94a3b8'}>UNIT // {unit}</text>
+            <text x="306" y="38" fill={isDark ? '#475569' : '#94a3b8'}>CALIBRATED</text>
+            <text x="32" y="375" fill={isDark ? '#475569' : '#94a3b8'}>0 {unit}</text>
+            <text x="300" y="375" fill={isDark ? '#475569' : '#94a3b8'}>{scaleDef.points[scaleDef.points.length - 1]} {unit}</text>
           </g>
 
           {/* 3. Base Graduation Track */}
@@ -309,7 +315,7 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
             cy={cy}
             r={radius}
             fill="none"
-            stroke="#0d1424"
+            stroke={isDark ? '#0d1424' : '#f1f5f9'}
             strokeWidth={10}
             strokeDasharray={`${arcLength} ${circumference}`}
             strokeDashoffset="0"
@@ -321,7 +327,7 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
             cy={cy}
             r={radius}
             fill="none"
-            stroke="#1e293b"
+            stroke={isDark ? '#1e293b' : '#cbd5e1'}
             strokeWidth={1}
             strokeDasharray={`${arcLength} ${circumference}`}
             strokeDashoffset="0"
@@ -363,7 +369,13 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
                 y1={y1}
                 x2={x2}
                 y2={y2}
-                stroke={isFilled ? (isUploadActive ? '#10e599' : '#00f0ff') : '#334155'}
+                stroke={
+                  isFilled
+                    ? isUploadActive
+                      ? (isDark ? '#10e599' : '#059669')
+                      : (isDark ? '#00f0ff' : '#0284c7')
+                    : (isDark ? '#334155' : '#cbd5e1')
+                }
                 strokeWidth="1"
                 className="transition-colors duration-150"
               />
@@ -395,12 +407,12 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
                   stroke={
                     isFilled
                       ? isUploadActive
-                        ? '#10e599'
-                        : '#00f0ff'
-                      : '#64748b'
+                        ? (isDark ? '#10e599' : '#059669')
+                        : (isDark ? '#00f0ff' : '#0284c7')
+                      : (isDark ? '#64748b' : '#94a3b8')
                   }
                   strokeWidth="2"
-                  filter={isFilled ? 'url(#neonBeamGlow)' : undefined}
+                  filter={isFilled && isDark ? 'url(#neonBeamGlow)' : undefined}
                   className="transition-colors duration-150"
                 />
                 <text
@@ -410,9 +422,9 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
                   className={`text-[11px] font-mono-data font-bold transition-all duration-200 ${
                     isFilled
                       ? isUploadActive
-                        ? 'fill-emerald-300 drop-shadow-[0_0_8px_rgba(16,229,153,0.9)]'
-                        : 'fill-cyan-300 drop-shadow-[0_0_8px_rgba(0,240,255,0.9)]'
-                      : 'fill-slate-500'
+                        ? isDark ? 'fill-emerald-300 drop-shadow-[0_0_8px_rgba(16,229,153,0.9)]' : 'fill-emerald-700 font-extrabold'
+                        : isDark ? 'fill-cyan-300 drop-shadow-[0_0_8px_rgba(0,240,255,0.9)]' : 'fill-sky-700 font-extrabold'
+                      : isDark ? 'fill-slate-500' : 'fill-slate-400'
                   }`}
                 >
                   {tick.val}
@@ -428,8 +440,8 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
             const pinR = radius + 10;
             return (
               <>
-                <circle cx={cx + pinR * Math.cos(rad0)} cy={cy + pinR * Math.sin(rad0)} r="2" fill="#475569" />
-                <circle cx={cx + pinR * Math.cos(radMax)} cy={cy + pinR * Math.sin(radMax)} r="2" fill="#475569" />
+                <circle cx={cx + pinR * Math.cos(rad0)} cy={cy + pinR * Math.sin(rad0)} r="2" fill={isDark ? '#475569' : '#cbd5e1'} />
+                <circle cx={cx + pinR * Math.cos(radMax)} cy={cy + pinR * Math.sin(radMax)} r="2" fill={isDark ? '#475569' : '#cbd5e1'} />
               </>
             );
           })()}
@@ -445,15 +457,15 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
                 y1={cy}
                 x2={cx + radius}
                 y2={cy}
-                stroke="#a855f7"
+                stroke={isDark ? '#a855f7' : '#7c3aed'}
                 strokeWidth="1.5"
                 strokeDasharray="3 3"
                 strokeOpacity="0.8"
               />
               <polygon
                 points={`${cx + radius + 2},${cy} ${cx + radius - 6},${cy - 3} ${cx + radius - 6},${cy + 3}`}
-                fill="#a855f7"
-                filter="url(#neonBeamGlow)"
+                fill={isDark ? '#a855f7' : '#7c3aed'}
+                filter={isDark ? 'url(#neonBeamGlow)' : undefined}
               />
             </g>
           )}
@@ -469,11 +481,11 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
             {/* Needle Counterweight */}
             <path
               d={`M ${cx - 24} ${cy} L ${cx - 10} ${cy - 3} L ${cx} ${cy - 2} L ${cx} ${cy + 2} L ${cx - 10} ${cy + 3} Z`}
-              fill="#1e293b"
-              stroke="#334155"
+              fill={isDark ? '#1e293b' : '#cbd5e1'}
+              stroke={isDark ? '#334155' : '#94a3b8'}
               strokeWidth="0.5"
             />
-            <circle cx={cx - 16} cy={cy} r="3" fill="#0b1120" stroke="#475569" strokeWidth="1" />
+            <circle cx={cx - 16} cy={cy} r="3" fill={isDark ? '#0b1120' : '#ffffff'} stroke={isDark ? '#475569' : '#94a3b8'} strokeWidth="1" />
 
             {/* Glowing Neon Aura */}
             <line
@@ -481,10 +493,10 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
               y1={cy}
               x2={cx + radius - 2}
               y2={cy}
-              stroke={phase === 'idle' ? '#475569' : theme.primary}
+              stroke={phase === 'idle' ? (isDark ? '#475569' : '#94a3b8') : theme.primary}
               strokeWidth="3"
-              strokeOpacity="0.35"
-              filter="url(#needleGlow)"
+              strokeOpacity={isDark ? 0.35 : 0.2}
+              filter={isDark ? 'url(#needleGlow)' : undefined}
             />
 
             {/* Main Precision Tapered Pin */}
@@ -499,7 +511,7 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
               y1={cy}
               x2={cx + radius}
               y2={cy}
-              stroke={isUploadActive ? '#10e599' : '#ffffff'}
+              stroke={isUploadActive ? (isDark ? '#10e599' : '#059669') : (isDark ? '#ffffff' : '#0284c7')}
               strokeWidth="1"
             />
 
@@ -508,20 +520,20 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
               cx={cx + radius}
               cy={cy}
               r="2"
-              fill={isUploadActive ? '#10e599' : '#00f0ff'}
-              filter="url(#neonBeamGlow)"
+              fill={isUploadActive ? (isDark ? '#10e599' : '#059669') : (isDark ? '#00f0ff' : '#0284c7')}
+              filter={isDark ? 'url(#neonBeamGlow)' : undefined}
             />
           </g>
 
           {/* 10. Center Precision Pivot Hub */}
-          <circle cx={cx} cy={cy} r={22} fill="#070c18" stroke="#1e293b" strokeWidth="2.5" />
-          <circle cx={cx} cy={cy} r={14} fill="#0f172a" stroke="#334155" strokeWidth="1" />
+          <circle cx={cx} cy={cy} r={22} fill={isDark ? '#070c18' : '#ffffff'} stroke={isDark ? '#1e293b' : '#cbd5e1'} strokeWidth="2.5" />
+          <circle cx={cx} cy={cy} r={14} fill={isDark ? '#0f172a' : '#f1f5f9'} stroke={isDark ? '#334155' : '#94a3b8'} strokeWidth="1" />
           <circle
             cx={cx}
             cy={cy}
             r={6}
-            fill={phase === 'idle' ? '#475569' : theme.primary}
-            filter="url(#neonBeamGlow)"
+            fill={phase === 'idle' ? (isDark ? '#475569' : '#94a3b8') : theme.primary}
+            filter={isDark ? 'url(#neonBeamGlow)' : undefined}
             className={phase !== 'idle' ? 'animate-pulse' : ''}
           />
         </svg>
@@ -530,13 +542,13 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
         <div className="absolute inset-0 flex flex-col items-center justify-center pt-28 pointer-events-none">
           {/* Phase Badge or Completed View Switcher */}
           {phase === 'completed' && onToggleCompletedView ? (
-            <div className="flex items-center gap-1 mb-1 p-0.5 rounded-lg bg-slate-950/90 border border-slate-800 backdrop-blur-md pointer-events-auto">
+            <div className="flex items-center gap-1 mb-1 p-0.5 rounded-lg bg-white/95 dark:bg-slate-950/90 border border-slate-200 dark:border-slate-800 backdrop-blur-md shadow-sm pointer-events-auto">
               <button
                 onClick={() => onToggleCompletedView('download')}
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-mono-data font-bold transition-all cursor-pointer ${
                   completedView === 'download'
-                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-[0_0_8px_rgba(0,240,255,0.3)]'
-                    : 'text-slate-400 hover:text-white'
+                    ? 'bg-cyan-50 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-500/40 shadow-xs'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 <ArrowDown className="w-2.5 h-2.5" />
@@ -546,8 +558,8 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
                 onClick={() => onToggleCompletedView('upload')}
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-mono-data font-bold transition-all cursor-pointer ${
                   completedView === 'upload'
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-[0_0_8px_rgba(16,229,153,0.3)]'
-                    : 'text-slate-400 hover:text-white'
+                    ? 'bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/40 shadow-xs'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 <ArrowUp className="w-2.5 h-2.5" />
@@ -555,14 +567,14 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-2 mb-1 px-3 py-0.5 rounded-full bg-slate-950/85 border border-slate-800/80 backdrop-blur-md shadow-lg">
+            <div className="flex items-center gap-2 mb-1 px-3 py-0.5 rounded-full bg-white/90 dark:bg-slate-950/85 border border-slate-200 dark:border-slate-800/80 backdrop-blur-md shadow-xs">
               <span
                 className={`w-2 h-2 rounded-full ${
                   phase === 'download' || phase === 'upload' || phase === 'ping'
-                    ? 'bg-cyan-400 animate-ping'
+                    ? 'bg-cyan-500 dark:bg-cyan-400 animate-ping'
                     : phase === 'completed'
-                    ? 'bg-emerald-400'
-                    : 'bg-slate-600'
+                    ? 'bg-emerald-500 dark:bg-emerald-400'
+                    : 'bg-slate-400 dark:bg-slate-600'
                 }`}
               />
               <span className={`text-[10px] font-mono-data tracking-widest uppercase font-bold ${theme.colorClass}`}>
@@ -571,38 +583,38 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
             </div>
           )}
 
-          {/* Main Bandwidth Numeric Readout with Glow */}
+          {/* Main Bandwidth Numeric Readout */}
           <div className="flex items-baseline gap-2 my-0.5">
-            <span className="text-5xl sm:text-6xl font-display font-black tracking-tight text-white tabular-nums drop-shadow-[0_0_20px_rgba(0,240,255,0.4)]">
+            <span className="text-5xl sm:text-6xl font-display font-black tracking-tight text-slate-900 dark:text-white tabular-nums drop-shadow-sm dark:drop-shadow-[0_0_20px_rgba(0,240,255,0.4)]">
               {phase === 'ping'
                 ? pingMs !== undefined ? pingMs : '--'
                 : phase === 'idle'
                 ? '0.00'
                 : displaySpeed.toFixed(2)}
             </span>
-            <span className="text-sm sm:text-base font-display uppercase font-bold text-cyan-400 tracking-wider">
+            <span className="text-sm sm:text-base font-display uppercase font-bold text-cyan-600 dark:text-cyan-400 tracking-wider">
               {phase === 'ping' ? 'ms' : unit}
             </span>
           </div>
 
           {/* Secondary Sub-Metric Telemetry */}
-          <div className="flex items-center gap-3 text-xs font-mono-data text-slate-400 mt-1 px-3 py-1 rounded-md bg-[#07090e]/80 border border-slate-800/60">
+          <div className="flex items-center gap-3 text-xs font-mono-data text-slate-500 dark:text-slate-400 mt-1 px-3 py-1 rounded-md bg-white/80 dark:bg-[#07090e]/80 border border-slate-200 dark:border-slate-800/60 shadow-xs">
             {phase === 'ping' ? (
-              <span>JITTER: <strong className="text-slate-200">{jitterMs !== undefined ? `${jitterMs} ms` : '--'}</strong></span>
+              <span>JITTER: <strong className="text-slate-800 dark:text-slate-200">{jitterMs !== undefined ? `${jitterMs} ms` : '--'}</strong></span>
             ) : (
               <>
                 <span className="flex items-center gap-1">
-                  <span className="text-purple-400">PEAK:</span>
-                  <strong className="text-white">{displayPeak.toFixed(2)}</strong> {unit}
+                  <span className="text-purple-600 dark:text-purple-400">PEAK:</span>
+                  <strong className="text-slate-900 dark:text-white">{displayPeak.toFixed(2)}</strong> {unit}
                 </span>
-                <span aria-hidden="true" className="text-slate-700">|</span>
-                <span className="text-cyan-400 font-semibold">{progressPct.toFixed(0)}%</span>
+                <span aria-hidden="true" className="text-slate-300 dark:text-slate-700">|</span>
+                <span className="text-cyan-600 dark:text-cyan-400 font-semibold">{progressPct.toFixed(0)}%</span>
               </>
             )}
           </div>
 
           {/* Sub-Tier Classification */}
-          <div className="mt-1.5 text-[9px] font-mono-data tracking-widest uppercase text-slate-500">
+          <div className="mt-1.5 text-[9px] font-mono-data tracking-widest uppercase text-slate-400 dark:text-slate-500">
             [{theme.tier}]
           </div>
         </div>
