@@ -1,111 +1,169 @@
 import React, { useMemo } from 'react';
 import { TestPhase } from '../types/speedtest';
+import { ArrowDown, ArrowUp } from 'lucide-react';
 
 interface SpeedGaugeProps {
-  currentSpeed: number; // in selected unit or Mbps
-  peakSpeed: number;
+  speedMbps: number; // Canonical speed in Mbps
+  peakSpeedMbps: number; // Canonical peak in Mbps
   unit: 'Mbps' | 'MB/s' | 'Gbps';
   phase: TestPhase;
   progressPct: number;
   pingMs?: number;
   jitterMs?: number;
+  downloadMbps?: number;
+  uploadMbps?: number;
+  completedView?: 'download' | 'upload';
+  onToggleCompletedView?: (view: 'download' | 'upload') => void;
+}
+
+interface ScaleDefinition {
+  points: number[];
+  fractions: number[];
+  subDivisions: number[];
+}
+
+export function convertSpeed(mbps: number, unit: 'Mbps' | 'MB/s' | 'Gbps'): number {
+  if (unit === 'MB/s') return mbps / 8;
+  if (unit === 'Gbps') return mbps / 1000;
+  return mbps;
 }
 
 export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
-  currentSpeed,
-  peakSpeed,
+  speedMbps,
+  peakSpeedMbps,
   unit,
   phase,
   progressPct,
   pingMs,
   jitterMs,
+  downloadMbps = 0,
+  uploadMbps = 0,
+  completedView = 'download',
+  onToggleCompletedView,
 }) => {
-  // Determine dynamic max scale based on current or peak speed
-  const maxScale = useMemo(() => {
-    const reference = Math.max(currentSpeed, peakSpeed, 50);
-    if (unit === 'Gbps') return 10;
-    if (unit === 'MB/s') {
-      if (reference > 120) return 250;
-      if (reference > 60) return 125;
-      if (reference > 30) return 60;
-      return 30;
-    }
-    // Mbps
-    if (reference > 500) return 1000;
-    if (reference > 250) return 500;
-    if (reference > 100) return 250;
-    return 100;
-  }, [currentSpeed, peakSpeed, unit]);
-
-  // Major tick divisions
-  const majorTicks = useMemo(() => {
-    const step = maxScale / 5;
-    return [0, step, step * 2, step * 3, step * 4, maxScale];
-  }, [maxScale]);
-
-  // Exact Geometry Configuration
+  // Geometry Constants
   const cx = 200;
   const cy = 200;
   const radius = 145;
-  const strokeWidth = 8;
   const startAngleDeg = 135; // 7:30 o'clock (bottom-left)
-  const sweepAngleDeg = 270; // Sweeps clockwise over top to 4:30 o'clock (bottom-right)
+  const sweepAngleDeg = 270; // 270° clockwise sweep to 4:30 o'clock (bottom-right)
   const circumference = 2 * Math.PI * radius;
   const arcLength = (sweepAngleDeg / 360) * circumference;
 
-  // Fraction filled (0 to 1)
-  const ratio = Math.min(Math.max(currentSpeed / maxScale, 0), 1);
-  const peakRatio = Math.min(Math.max(peakSpeed / maxScale, 0), 1);
+  // Selected speed based on phase or completed view
+  const activeSpeedMbps = useMemo(() => {
+    if (phase === 'completed') {
+      return completedView === 'upload' ? uploadMbps : downloadMbps;
+    }
+    return speedMbps;
+  }, [phase, completedView, speedMbps, downloadMbps, uploadMbps]);
 
-  // Exact needle angle: 135° at 0 speed, 270° at 50% speed (straight UP), 405° (45°) at max scale
+  // Convert canonical Mbps to the selected unit for display and scaling
+  const displaySpeed = useMemo(() => {
+    return convertSpeed(activeSpeedMbps, unit);
+  }, [activeSpeedMbps, unit]);
+
+  const displayPeak = useMemo(() => {
+    return convertSpeed(peakSpeedMbps, unit);
+  }, [peakSpeedMbps, unit]);
+
+  // Calibrated, non-linear logarithmic speed scale matching each unit
+  const scaleDef: ScaleDefinition = useMemo(() => {
+    if (unit === 'MB/s') {
+      return {
+        points: [0, 1, 2, 5, 10, 25, 50, 75, 125],
+        fractions: [0, 0.08, 0.16, 0.30, 0.44, 0.60, 0.76, 0.88, 1.00],
+        subDivisions: [1, 1, 2, 4, 2, 4, 2, 4],
+      };
+    }
+    if (unit === 'Gbps') {
+      return {
+        points: [0, 0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 1.0],
+        fractions: [0, 0.10, 0.22, 0.36, 0.54, 0.72, 0.88, 1.00],
+        subDivisions: [1, 3, 3, 2, 4, 3, 4],
+      };
+    }
+    // Default Mbps scale: 0 to 1000 Mbps
+    return {
+      points: [0, 5, 10, 25, 50, 100, 250, 500, 1000],
+      fractions: [0, 0.08, 0.16, 0.30, 0.44, 0.60, 0.76, 0.88, 1.00],
+      subDivisions: [4, 4, 2, 4, 4, 2, 4, 4],
+    };
+  }, [unit]);
+
+  // Convert display speed to fractional dial position [0.0 - 1.0]
+  const speedToFraction = (speed: number): number => {
+    if (speed <= 0) return 0;
+    const { points, fractions } = scaleDef;
+    const maxPoint = points[points.length - 1];
+
+    if (speed >= maxPoint) {
+      return Math.min(1 + ((speed - maxPoint) / maxPoint) * 0.05, 1.02);
+    }
+
+    for (let i = 0; i < points.length - 1; i++) {
+      const pLow = points[i];
+      const pHigh = points[i + 1];
+      if (speed >= pLow && speed <= pHigh) {
+        const segFrac = (speed - pLow) / (pHigh - pLow);
+        const fLow = fractions[i];
+        const fHigh = fractions[i + 1];
+        return fLow + segFrac * (fHigh - fLow);
+      }
+    }
+    return 0;
+  };
+
+  // Dial fractions
+  const ratio = speedToFraction(displaySpeed);
+  const peakRatio = speedToFraction(displayPeak);
+
+  // Pin Angles
   const needleAngle = startAngleDeg + ratio * sweepAngleDeg;
   const peakAngle = startAngleDeg + peakRatio * sweepAngleDeg;
 
-  // Progress arc offset
-  const strokeDashoffset = arcLength * (1 - ratio);
+  // Active glowing arc offset
+  const strokeDashoffset = arcLength * (1 - Math.min(ratio, 1));
 
-  // Micro-ticks array (54 ticks around the 270° sweep, 1 every 5°)
-  const microTicksCount = 54;
-  const microTicks = useMemo(() => {
-    return Array.from({ length: microTicksCount + 1 }, (_, i) => {
-      const frac = i / microTicksCount;
+  // Compute Major Ticks
+  const majorTicks = useMemo(() => {
+    const { points, fractions } = scaleDef;
+    return points.map((val, idx) => {
+      const frac = fractions[idx];
       const angle = startAngleDeg + frac * sweepAngleDeg;
       const rad = (angle * Math.PI) / 180;
-      const isMajor = i % (microTicksCount / 5) === 0;
-      return {
-        index: i,
-        angle,
-        rad,
-        frac,
-        isMajor,
-        val: Math.round(frac * maxScale),
-      };
+      return { val, frac, angle, rad };
     });
-  }, [maxScale]);
+  }, [scaleDef]);
 
-  // Segmented inner LED bars (28 bars)
-  const ledBarsCount = 28;
-  const ledBars = useMemo(() => {
-    return Array.from({ length: ledBarsCount }, (_, i) => {
-      const frac = i / (ledBarsCount - 1);
-      const angle = startAngleDeg + frac * sweepAngleDeg;
-      const rad = (angle * Math.PI) / 180;
-      return {
-        index: i,
-        angle,
-        rad,
-        frac,
-        isActive: frac <= ratio && currentSpeed > 0,
-      };
-    });
-  }, [ratio, currentSpeed]);
+  // Compute Minor Ticks
+  const minorTicks = useMemo(() => {
+    const { points, fractions, subDivisions } = scaleDef;
+    const ticks: { angle: number; rad: number; frac: number }[] = [];
 
-  // Phase color theme and futuristic labels
+    for (let i = 0; i < points.length - 1; i++) {
+      const numSubs = subDivisions[i] || 2;
+      const fLow = fractions[i];
+      const fHigh = fractions[i + 1];
+
+      for (let s = 1; s < numSubs; s++) {
+        const subFrac = fLow + (s / numSubs) * (fHigh - fLow);
+        const angle = startAngleDeg + subFrac * sweepAngleDeg;
+        const rad = (angle * Math.PI) / 180;
+        ticks.push({ angle, rad, frac: subFrac });
+      }
+    }
+    return ticks;
+  }, [scaleDef]);
+
+  // Color theme
+  const isUploadActive = phase === 'upload' || (phase === 'completed' && completedView === 'upload');
+
   const getPhaseTheme = () => {
     switch (phase) {
       case 'ping':
         return {
-          primary: '#38bdf8', // sky-400
+          primary: '#38bdf8',
           glow: 'rgba(56, 189, 248, 0.6)',
           ambient: 'rgba(56, 189, 248, 0.15)',
           label: 'MEASURING LATENCY',
@@ -114,30 +172,37 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
         };
       case 'download':
         return {
-          primary: '#00f0ff', // neon cyan
+          primary: '#00f0ff',
           glow: 'rgba(0, 240, 255, 0.65)',
           ambient: 'rgba(0, 240, 255, 0.2)',
           label: 'STREAMING DOWNLOAD',
-          tier: currentSpeed > 400 ? 'HYPER FIBER' : currentSpeed > 100 ? 'ULTRA BROADBAND' : 'STANDARD BROADBAND',
+          tier:
+            activeSpeedMbps > 500
+              ? 'GIGABIT FIBER'
+              : activeSpeedMbps > 200
+              ? 'ULTRA BROADBAND'
+              : activeSpeedMbps > 50
+              ? 'FAST BROADBAND'
+              : 'STANDARD BROADBAND',
           colorClass: 'text-[#00f0ff]',
         };
       case 'upload':
         return {
-          primary: '#10e599', // neon emerald
+          primary: '#10e599',
           glow: 'rgba(16, 229, 153, 0.65)',
           ambient: 'rgba(16, 229, 153, 0.2)',
           label: 'BUFFERING UPLOAD',
-          tier: currentSpeed > 100 ? 'GIGABIT UPSTREAM' : 'HIGH CAPACITY',
+          tier: activeSpeedMbps > 100 ? 'GIGABIT UPSTREAM' : 'HIGH CAPACITY',
           colorClass: 'text-[#10e599]',
         };
       case 'completed':
         return {
-          primary: '#00f0ff',
-          glow: 'rgba(0, 240, 255, 0.4)',
+          primary: isUploadActive ? '#10e599' : '#00f0ff',
+          glow: isUploadActive ? 'rgba(16, 229, 153, 0.5)' : 'rgba(0, 240, 255, 0.5)',
           ambient: 'rgba(0, 240, 255, 0.12)',
-          label: 'TELEMETRY LOCKED',
-          tier: 'COMPLETE',
-          colorClass: 'text-[#00f0ff]',
+          label: isUploadActive ? 'UPLOAD RESULT' : 'DOWNLOAD RESULT',
+          tier: 'TEST COMPLETED',
+          colorClass: isUploadActive ? 'text-[#10e599]' : 'text-[#00f0ff]',
         };
       case 'error':
         return {
@@ -165,13 +230,13 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
   return (
     <div className="relative flex flex-col items-center justify-center p-2 select-none">
       {/* Sci-Fi Hologram Dial Container */}
-      <div className="relative w-[360px] h-[360px] sm:w-[400px] sm:h-[400px] flex items-center justify-center">
+      <div className="relative w-[360px] h-[360px] sm:w-[420px] sm:h-[420px] flex items-center justify-center">
         {/* Dynamic Holographic Backdrop Ambient Light */}
         <div
           className="absolute inset-0 rounded-full transition-opacity duration-700 pointer-events-none"
           style={{
             background: `radial-gradient(circle, ${theme.glow} 0%, ${theme.ambient} 45%, transparent 70%)`,
-            opacity: phase === 'download' || phase === 'upload' ? 0.75 : 0.25,
+            opacity: phase === 'download' || phase === 'upload' || phase === 'completed' ? 0.65 : 0.2,
             filter: 'blur(16px)',
           }}
         />
@@ -180,38 +245,37 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
         <div className="absolute inset-4 rounded-full border border-cyan-500/10 pointer-events-none" />
         <div className="absolute inset-10 rounded-full border border-indigo-500/10 pointer-events-none" />
 
-        <svg
-          className="w-full h-full transform"
-          viewBox="0 0 400 400"
-        >
+        <svg className="w-full h-full transform" viewBox="0 0 400 400">
           <defs>
-            {/* Download Neon Cyan/Violet Gradient */}
             <linearGradient id="cyberDownloadGrad" x1="0%" y1="100%" x2="100%" y2="0%">
               <stop offset="0%" stopColor="#00f0ff" />
-              <stop offset="50%" stopColor="#3b82f6" />
+              <stop offset="55%" stopColor="#38bdf8" />
               <stop offset="100%" stopColor="#a855f7" />
             </linearGradient>
 
-            {/* Upload Neon Emerald/Cyan Gradient */}
             <linearGradient id="cyberUploadGrad" x1="0%" y1="100%" x2="100%" y2="0%">
               <stop offset="0%" stopColor="#10e599" />
               <stop offset="70%" stopColor="#00f0ff" />
               <stop offset="100%" stopColor="#0284c7" />
             </linearGradient>
 
-            {/* Subtle glow filter */}
+            <linearGradient id="pinNeedleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#ffffff" />
+              <stop offset="40%" stopColor="#e2e8f0" />
+              <stop offset="85%" stopColor={isUploadActive ? '#10e599' : '#00f0ff'} />
+              <stop offset="100%" stopColor="#ffffff" />
+            </linearGradient>
+
             <filter id="neonBeamGlow" x="-30%" y="-30%" width="160%" height="160%">
-              <feGaussianBlur stdDeviation="4" result="blur1" />
-              <feGaussianBlur stdDeviation="10" result="blur2" />
+              <feGaussianBlur stdDeviation="3.5" result="blur1" />
               <feMerge>
-                <feMergeNode in="blur2" />
                 <feMergeNode in="blur1" />
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
 
             <filter id="needleGlow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="3" result="glow" />
+              <feGaussianBlur stdDeviation="2.5" result="glow" />
               <feMerge>
                 <feMergeNode in="glow" />
                 <feMergeNode in="SourceGraphic" />
@@ -219,34 +283,34 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
             </filter>
           </defs>
 
-          {/* 1. Outer Hologram Radar Ring (Dashed, rotating) */}
+          {/* 1. Outer Hologram Radar Ring */}
           <circle
             cx={cx}
             cy={cy}
-            r={180}
+            r={184}
             fill="none"
             stroke="#1e293b"
             strokeWidth="1.5"
             strokeDasharray="4 8 1 8"
-            className="opacity-70"
+            className="opacity-60"
           />
 
-          {/* 2. Outer Technical Coordinate Corner Accents */}
+          {/* 2. Outer Technical Labels */}
           <g className="text-slate-600 text-[8px] font-mono-data">
-            <text x="32" y="38" fill="#475569">SYS.NAV // 01</text>
-            <text x="310" y="38" fill="#475569">BW.CAP // 10G</text>
-            <text x="32" y="375" fill="#475569">FREQ: 2.4/5G</text>
-            <text x="306" y="375" fill="#475569">PORT: OPTIC</text>
+            <text x="32" y="38" fill="#475569">UNIT // {unit}</text>
+            <text x="306" y="38" fill="#475569">CALIBRATED</text>
+            <text x="32" y="375" fill="#475569">0 {unit}</text>
+            <text x="300" y="375" fill="#475569">{scaleDef.points[scaleDef.points.length - 1]} {unit}</text>
           </g>
 
-          {/* 3. Outer Graduation Track Arc (Base Gray) */}
+          {/* 3. Base Graduation Track */}
           <circle
             cx={cx}
             cy={cy}
             r={radius}
             fill="none"
-            stroke="#0f172a"
-            strokeWidth={strokeWidth + 4}
+            stroke="#0d1424"
+            strokeWidth={10}
             strokeDasharray={`${arcLength} ${circumference}`}
             strokeDashoffset="0"
             strokeLinecap="round"
@@ -258,7 +322,7 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
             r={radius}
             fill="none"
             stroke="#1e293b"
-            strokeWidth={strokeWidth}
+            strokeWidth={1}
             strokeDasharray={`${arcLength} ${circumference}`}
             strokeDashoffset="0"
             strokeLinecap="round"
@@ -271,8 +335,8 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
             cy={cy}
             r={radius}
             fill="none"
-            stroke={phase === 'upload' ? 'url(#cyberUploadGrad)' : 'url(#cyberDownloadGrad)'}
-            strokeWidth={strokeWidth}
+            stroke={isUploadActive ? 'url(#cyberUploadGrad)' : 'url(#cyberDownloadGrad)'}
+            strokeWidth={6}
             strokeDasharray={`${arcLength} ${circumference}`}
             strokeDashoffset={strokeDashoffset}
             strokeLinecap="round"
@@ -281,11 +345,11 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
             transform={`rotate(${startAngleDeg} ${cx} ${cy})`}
           />
 
-          {/* 5. 54 Micro-Ticks Around the Arc (5-degree precision) */}
-          {microTicks.map((tick) => {
-            const isFilled = tick.frac <= ratio && currentSpeed > 0;
-            const innerR = tick.isMajor ? radius - 18 : radius - 12;
-            const outerR = radius - 6;
+          {/* 5. Minor Sub-Ticks */}
+          {minorTicks.map((tick, idx) => {
+            const isFilled = tick.frac <= ratio && displaySpeed > 0;
+            const innerR = radius - 8;
+            const outerR = radius - 2;
 
             const x1 = cx + innerR * Math.cos(tick.rad);
             const y1 = cy + innerR * Math.sin(tick.rad);
@@ -294,219 +358,242 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
 
             return (
               <line
-                key={tick.index}
+                key={`minor-${idx}`}
                 x1={x1}
                 y1={y1}
                 x2={x2}
                 y2={y2}
-                stroke={
-                  isFilled
-                    ? phase === 'upload'
-                      ? '#10e599'
-                      : '#00f0ff'
-                    : tick.isMajor
-                    ? '#334155'
-                    : '#1e293b'
-                }
-                strokeWidth={tick.isMajor ? (isFilled ? '2' : '1.5') : '1'}
+                stroke={isFilled ? (isUploadActive ? '#10e599' : '#00f0ff') : '#334155'}
+                strokeWidth="1"
                 className="transition-colors duration-150"
               />
             );
           })}
 
-          {/* 6. Precision Scale Numerical Labels at Major Ticks */}
-          {majorTicks.map((val, i) => {
-            const frac = i / (majorTicks.length - 1);
-            const angle = startAngleDeg + frac * sweepAngleDeg;
-            const rad = (angle * Math.PI) / 180;
-            const labelR = radius - 30;
+          {/* 6. Major Ticks & Scale Numbers (Exact Calibrated Positions) */}
+          {majorTicks.map((tick) => {
+            const isFilled = displaySpeed >= tick.val && displaySpeed > 0;
+            const innerR = radius - 16;
+            const outerR = radius + 2;
+            const labelR = radius - 28;
 
-            const tx = cx + labelR * Math.cos(rad);
-            const ty = cy + labelR * Math.sin(rad);
+            const x1 = cx + innerR * Math.cos(tick.rad);
+            const y1 = cy + innerR * Math.sin(tick.rad);
+            const x2 = cx + outerR * Math.cos(tick.rad);
+            const y2 = cy + outerR * Math.sin(tick.rad);
 
-            const isPassed = currentSpeed >= val && currentSpeed > 0;
+            const tx = cx + labelR * Math.cos(tick.rad);
+            const ty = cy + labelR * Math.sin(tick.rad);
 
             return (
-              <text
-                key={val}
-                x={tx}
-                y={ty + 4}
-                textAnchor="middle"
-                className={`text-[11px] font-mono-data font-bold transition-colors duration-200 ${
-                  isPassed
-                    ? phase === 'upload'
-                      ? 'fill-emerald-400 drop-shadow-[0_0_8px_rgba(16,229,153,0.8)]'
-                      : 'fill-cyan-300 drop-shadow-[0_0_8px_rgba(0,240,255,0.8)]'
-                    : 'fill-slate-500'
-                }`}
-              >
-                {val}
-              </text>
+              <g key={`major-${tick.val}`}>
+                <line
+                  x1={x1}
+                  y1={y1}
+                  x2={x2}
+                  y2={y2}
+                  stroke={
+                    isFilled
+                      ? isUploadActive
+                        ? '#10e599'
+                        : '#00f0ff'
+                      : '#64748b'
+                  }
+                  strokeWidth="2"
+                  filter={isFilled ? 'url(#neonBeamGlow)' : undefined}
+                  className="transition-colors duration-150"
+                />
+                <text
+                  x={tx}
+                  y={ty + 4}
+                  textAnchor="middle"
+                  className={`text-[11px] font-mono-data font-bold transition-all duration-200 ${
+                    isFilled
+                      ? isUploadActive
+                        ? 'fill-emerald-300 drop-shadow-[0_0_8px_rgba(16,229,153,0.9)]'
+                        : 'fill-cyan-300 drop-shadow-[0_0_8px_rgba(0,240,255,0.9)]'
+                      : 'fill-slate-500'
+                  }`}
+                >
+                  {tick.val}
+                </text>
+              </g>
             );
           })}
 
-          {/* 7. Inner Curved Futuristic Segmented LED Bars */}
-          {ledBars.map((bar) => {
-            const innerR = 106;
-            const outerR = 114;
-            const x1 = cx + innerR * Math.cos(bar.rad);
-            const y1 = cy + innerR * Math.sin(bar.rad);
-            const x2 = cx + outerR * Math.cos(bar.rad);
-            const y2 = cy + outerR * Math.sin(bar.rad);
-
+          {/* 7. Stop Pins (At 0 and Max) */}
+          {(() => {
+            const rad0 = (startAngleDeg * Math.PI) / 180;
+            const radMax = ((startAngleDeg + sweepAngleDeg) * Math.PI) / 180;
+            const pinR = radius + 10;
             return (
-              <line
-                key={bar.index}
-                x1={x1}
-                y1={y1}
-                x2={x2}
-                y2={y2}
-                stroke={
-                  bar.isActive
-                    ? phase === 'upload'
-                      ? '#10e599'
-                      : '#00f0ff'
-                    : '#0e1726'
-                }
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                className="transition-colors duration-100"
-              />
+              <>
+                <circle cx={cx + pinR * Math.cos(rad0)} cy={cy + pinR * Math.sin(rad0)} r="2" fill="#475569" />
+                <circle cx={cx + pinR * Math.cos(radMax)} cy={cy + pinR * Math.sin(radMax)} r="2" fill="#475569" />
+              </>
             );
-          })}
+          })()}
 
           {/* 8. Peak Speed Ghost Needle */}
-          {peakSpeed > 0 && (
+          {peakSpeedMbps > 0 && (
             <g
               transform={`rotate(${peakAngle} ${cx} ${cy})`}
               className="transition-transform duration-300 ease-out"
             >
               <line
-                x1={cx + 60}
+                x1={cx + 40}
                 y1={cy}
-                x2={cx + radius - 4}
+                x2={cx + radius}
                 y2={cy}
                 stroke="#a855f7"
                 strokeWidth="1.5"
-                strokeDasharray="2 2"
-                strokeOpacity="0.75"
+                strokeDasharray="3 3"
+                strokeOpacity="0.8"
               />
-              <circle
-                cx={cx + radius - 4}
-                cy={cy}
-                r="2.5"
+              <polygon
+                points={`${cx + radius + 2},${cy} ${cx + radius - 6},${cy - 3} ${cx + radius - 6},${cy + 3}`}
                 fill="#a855f7"
                 filter="url(#neonBeamGlow)"
               />
             </g>
           )}
 
-          {/* 9. Futuristic High-Energy Laser Needle */}
+          {/* 9. High-Precision Mechanical Needle Pin */}
           <g
             transform={`rotate(${needleAngle} ${cx} ${cy})`}
-            className="transition-transform duration-100 ease-out origin-center"
+            style={{
+              transition: 'transform 180ms cubic-bezier(0.18, 0.89, 0.32, 1.05)',
+            }}
+            className="origin-center"
           >
-            {/* Laser beam glow backdrop */}
+            {/* Needle Counterweight */}
+            <path
+              d={`M ${cx - 24} ${cy} L ${cx - 10} ${cy - 3} L ${cx} ${cy - 2} L ${cx} ${cy + 2} L ${cx - 10} ${cy + 3} Z`}
+              fill="#1e293b"
+              stroke="#334155"
+              strokeWidth="0.5"
+            />
+            <circle cx={cx - 16} cy={cy} r="3" fill="#0b1120" stroke="#475569" strokeWidth="1" />
+
+            {/* Glowing Neon Aura */}
             <line
               x1={cx}
               y1={cy}
-              x2={cx + radius - 8}
+              x2={cx + radius - 2}
               y2={cy}
               stroke={phase === 'idle' ? '#475569' : theme.primary}
-              strokeWidth="4"
-              strokeLinecap="round"
-              strokeOpacity="0.4"
+              strokeWidth="3"
+              strokeOpacity="0.35"
               filter="url(#needleGlow)"
             />
-            {/* Core razor-sharp neon needle */}
+
+            {/* Main Precision Tapered Pin */}
+            <polygon
+              points={`${cx + radius},${cy} ${cx + radius - 14},${cy - 1.2} ${cx + 10},${cy - 2.5} ${cx + 10},${cy + 2.5} ${cx + radius - 14},${cy + 1.2}`}
+              fill="url(#pinNeedleGrad)"
+            />
+
+            {/* Center Razor Hairline */}
             <line
               x1={cx + 12}
               y1={cy}
-              x2={cx + radius - 6}
+              x2={cx + radius}
               y2={cy}
-              stroke={phase === 'idle' ? '#94a3b8' : '#ffffff'}
-              strokeWidth="2"
-              strokeLinecap="round"
+              stroke={isUploadActive ? '#10e599' : '#ffffff'}
+              strokeWidth="1"
             />
-            {/* Arrow chevron tip */}
-            <polygon
-              points={`${cx + radius - 4},${cy} ${cx + radius - 16},${cy - 4} ${cx + radius - 12},${cy} ${cx + radius - 16},${cy + 4}`}
-              fill={phase === 'idle' ? '#94a3b8' : theme.primary}
-              filter="url(#needleGlow)"
+
+            {/* Needle Tip Indicator Jewel */}
+            <circle
+              cx={cx + radius}
+              cy={cy}
+              r="2"
+              fill={isUploadActive ? '#10e599' : '#00f0ff'}
+              filter="url(#neonBeamGlow)"
             />
           </g>
 
-          {/* 10. Center Quantum Reactor Core Hub */}
-          {/* Outer hub ring */}
-          <circle
-            cx={cx}
-            cy={cy}
-            r={24}
-            fill="#060911"
-            stroke="#1e293b"
-            strokeWidth="2"
-          />
-          {/* Inner pulsating glow hub */}
-          <circle
-            cx={cx}
-            cy={cy}
-            r={16}
-            fill="#0a101d"
-            stroke={phase === 'idle' ? '#334155' : theme.primary}
-            strokeWidth="1.5"
-            filter="url(#neonBeamGlow)"
-            className={phase !== 'idle' ? 'animate-pulse' : ''}
-          />
-          {/* Center core diode */}
+          {/* 10. Center Precision Pivot Hub */}
+          <circle cx={cx} cy={cy} r={22} fill="#070c18" stroke="#1e293b" strokeWidth="2.5" />
+          <circle cx={cx} cy={cy} r={14} fill="#0f172a" stroke="#334155" strokeWidth="1" />
           <circle
             cx={cx}
             cy={cy}
             r={6}
-            fill={phase === 'idle' ? '#64748b' : theme.primary}
+            fill={phase === 'idle' ? '#475569' : theme.primary}
+            filter="url(#neonBeamGlow)"
+            className={phase !== 'idle' ? 'animate-pulse' : ''}
           />
         </svg>
 
-        {/* Center Digital Telemetry HUD Overlay */}
+        {/* Center Digital Telemetry HUD Readout */}
         <div className="absolute inset-0 flex flex-col items-center justify-center pt-28 pointer-events-none">
-          {/* Phase Badge with Futuristic Pulsing Glyphs */}
-          <div className="flex items-center gap-2 mb-1 px-3 py-0.5 rounded-full bg-slate-950/80 border border-slate-800/80 backdrop-blur-md shadow-lg">
-            <span
-              className={`w-2 h-2 rounded-full ${
-                phase === 'download' || phase === 'upload' || phase === 'ping'
-                  ? 'bg-cyan-400 animate-ping'
-                  : phase === 'completed'
-                  ? 'bg-emerald-400'
-                  : 'bg-slate-600'
-              }`}
-            />
-            <span className={`text-[10px] font-mono-data tracking-widest uppercase font-bold ${theme.colorClass}`}>
-              {theme.label}
-            </span>
-          </div>
+          {/* Phase Badge or Completed View Switcher */}
+          {phase === 'completed' && onToggleCompletedView ? (
+            <div className="flex items-center gap-1 mb-1 p-0.5 rounded-lg bg-slate-950/90 border border-slate-800 backdrop-blur-md pointer-events-auto">
+              <button
+                onClick={() => onToggleCompletedView('download')}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-mono-data font-bold transition-all cursor-pointer ${
+                  completedView === 'download'
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-[0_0_8px_rgba(0,240,255,0.3)]'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <ArrowDown className="w-2.5 h-2.5" />
+                DL: {convertSpeed(downloadMbps, unit).toFixed(1)}
+              </button>
+              <button
+                onClick={() => onToggleCompletedView('upload')}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-mono-data font-bold transition-all cursor-pointer ${
+                  completedView === 'upload'
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-[0_0_8px_rgba(16,229,153,0.3)]'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <ArrowUp className="w-2.5 h-2.5" />
+                UL: {convertSpeed(uploadMbps, unit).toFixed(1)}
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 mb-1 px-3 py-0.5 rounded-full bg-slate-950/85 border border-slate-800/80 backdrop-blur-md shadow-lg">
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  phase === 'download' || phase === 'upload' || phase === 'ping'
+                    ? 'bg-cyan-400 animate-ping'
+                    : phase === 'completed'
+                    ? 'bg-emerald-400'
+                    : 'bg-slate-600'
+                }`}
+              />
+              <span className={`text-[10px] font-mono-data tracking-widest uppercase font-bold ${theme.colorClass}`}>
+                {theme.label}
+              </span>
+            </div>
+          )}
 
-          {/* Main Bandwidth Numerical Readout with Cyber Glowing Display Face */}
+          {/* Main Bandwidth Numeric Readout with Glow */}
           <div className="flex items-baseline gap-2 my-0.5">
             <span className="text-5xl sm:text-6xl font-display font-black tracking-tight text-white tabular-nums drop-shadow-[0_0_20px_rgba(0,240,255,0.4)]">
               {phase === 'ping'
                 ? pingMs !== undefined ? pingMs : '--'
                 : phase === 'idle'
                 ? '0.00'
-                : currentSpeed.toFixed(2)}
+                : displaySpeed.toFixed(2)}
             </span>
             <span className="text-sm sm:text-base font-display uppercase font-bold text-cyan-400 tracking-wider">
               {phase === 'ping' ? 'ms' : unit}
             </span>
           </div>
 
-          {/* Futuristic Secondary Sub-Metric Telemetry */}
+          {/* Secondary Sub-Metric Telemetry */}
           <div className="flex items-center gap-3 text-xs font-mono-data text-slate-400 mt-1 px-3 py-1 rounded-md bg-[#07090e]/80 border border-slate-800/60">
             {phase === 'ping' ? (
               <span>JITTER: <strong className="text-slate-200">{jitterMs !== undefined ? `${jitterMs} ms` : '--'}</strong></span>
             ) : (
               <>
                 <span className="flex items-center gap-1">
-                  <span className="text-purple-400">MAX:</span>
-                  <strong className="text-white">{peakSpeed.toFixed(2)}</strong> {unit}
+                  <span className="text-purple-400">PEAK:</span>
+                  <strong className="text-white">{displayPeak.toFixed(2)}</strong> {unit}
                 </span>
                 <span aria-hidden="true" className="text-slate-700">|</span>
                 <span className="text-cyan-400 font-semibold">{progressPct.toFixed(0)}%</span>

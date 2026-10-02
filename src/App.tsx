@@ -82,6 +82,7 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'test' | 'diagnostics' | 'history'>('test');
+  const [completedView, setCompletedView] = useState<'download' | 'upload'>('download');
 
   // Engine instance
   const engineRef = useRef<SpeedTestEngine>(new SpeedTestEngine());
@@ -112,13 +113,13 @@ export default function App() {
     if (phase !== 'idle' && phase !== 'completed' && phase !== 'error') {
       // If currently testing, cancel it
       engineRef.current.cancel();
-      soundManager.stopStreamEngine();
       setPhase('idle');
       return;
     }
 
     // Reset metrics
     setPhase('ping');
+    setCompletedView('download');
     setCurrentSpeed(0);
     setPeakSpeed(0);
     setProgressPct(0);
@@ -139,11 +140,6 @@ export default function App() {
         {
           onPhaseChange: (p) => {
             setPhase(p);
-            if (p === 'download' || p === 'upload') {
-              soundManager.startStreamEngine();
-            } else if (p === 'completed' || p === 'error') {
-              soundManager.stopStreamEngine();
-            }
           },
           onPingProgress: (p, j) => {
             setPingMs(p);
@@ -155,7 +151,6 @@ export default function App() {
             setDownloadBytes(bytes);
             setProgressPct(pct);
             setPeakSpeed((prev) => Math.max(prev, smooth));
-            soundManager.updateStreamPitch(smooth);
           },
           onUploadProgress: (instant, smooth, bytes, pct) => {
             setCurrentSpeed(smooth);
@@ -163,7 +158,6 @@ export default function App() {
             setUploadBytes(bytes);
             setProgressPct(pct);
             setPeakSpeed((prev) => Math.max(prev, smooth));
-            soundManager.updateStreamPitch(smooth);
           },
           onTelemetryPoint: (pt) => {
             setTelemetry((prev) => [...prev, pt]);
@@ -172,6 +166,13 @@ export default function App() {
       );
 
       setCurrentResult(result);
+      setPhase('completed');
+      setCompletedView('download');
+      setCurrentSpeed(result.downloadMbps);
+      setDownloadMbps(result.downloadMbps);
+      setUploadMbps(result.uploadMbps);
+      setPeakSpeed(result.peakDownloadMbps);
+
       if (result.clientInfo) {
         setClientInfo(result.clientInfo);
       }
@@ -185,7 +186,6 @@ export default function App() {
         return updated;
       });
     } catch (err) {
-      soundManager.stopStreamEngine();
       if (phase !== 'idle') {
         setPhase('error');
       }
@@ -394,13 +394,17 @@ export default function App() {
             {/* Central Holographic Speedometer Dial Stage */}
             <div className="relative flex flex-col items-center justify-center py-2 sm:py-4">
               <SpeedGauge
-                currentSpeed={currentSpeed}
-                peakSpeed={peakSpeed}
+                speedMbps={currentSpeed}
+                peakSpeedMbps={peakSpeed}
                 unit={config.unit}
                 phase={phase}
                 progressPct={progressPct}
                 pingMs={pingMs}
                 jitterMs={jitterMs}
+                downloadMbps={currentResult?.downloadMbps || downloadMbps}
+                uploadMbps={currentResult?.uploadMbps || uploadMbps}
+                completedView={completedView}
+                onToggleCompletedView={setCompletedView}
               />
 
               {/* Cyber Central Launch Button */}

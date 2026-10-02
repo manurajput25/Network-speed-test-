@@ -163,11 +163,9 @@ export class SpeedTestEngine {
     try {
       // PHASE 1: PING & JITTER TEST
       callbacks.onPhaseChange('ping');
-      soundManager.playPhaseShift();
 
       const pingResults = await this.measurePingAndJitter(server, 8, signal, (p, j, r, total) => {
         callbacks.onPingProgress(p, j, r, total);
-        soundManager.playPing();
       });
 
       pingMs = pingResults.ping;
@@ -177,7 +175,6 @@ export class SpeedTestEngine {
 
       // PHASE 2: DOWNLOAD SPEED TEST
       callbacks.onPhaseChange('download');
-      soundManager.playPhaseShift();
 
       const downloadTargetSeconds = Math.max(durationSeconds * 0.55, 4);
       const dlResult = await this.runDownloadPhase(
@@ -209,7 +206,6 @@ export class SpeedTestEngine {
 
       // PHASE 3: UPLOAD SPEED TEST
       callbacks.onPhaseChange('upload');
-      soundManager.playPhaseShift();
 
       const uploadTargetSeconds = Math.max(durationSeconds * 0.45, 3.5);
       const ulResult = await this.runUploadPhase(
