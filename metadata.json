@@ -1,0 +1,6 @@
+{
+  "name": "VelocityNet - Internet Speed Test & Network Diagnostics",
+  "description": "High-precision internet speed test measuring download speed, upload speed, latency ping, jitter, and connection stability with real-time telemetry graphs and performance diagnostics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

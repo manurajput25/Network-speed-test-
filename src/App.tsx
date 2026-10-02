@@ -1,0 +1,636 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  Play,
+  RotateCcw,
+  Sliders,
+  Share2,
+  Server,
+  Globe,
+  Radio,
+  Zap,
+  CheckCircle2,
+  Shield,
+  Layers,
+  Volume2,
+  VolumeX,
+  Cpu,
+  Clock,
+  Sparkles,
+  Wifi,
+} from 'lucide-react';
+import {
+  TestPhase,
+  ServerTarget,
+  ClientNetworkInfo,
+  SpeedTestResult,
+  TelemetryPoint,
+  SpeedTestConfig,
+} from './types/speedtest';
+import {
+  SpeedTestEngine,
+  DEFAULT_SERVERS,
+  fetchClientInfo,
+} from './utils/speedtest-engine';
+import { soundManager } from './utils/audio';
+import { SpeedGauge } from './components/SpeedGauge';
+import { MetricCards } from './components/MetricCards';
+import { LiveTelemetryChart } from './components/LiveTelemetryChart';
+import { NetworkDiagnostics } from './components/NetworkDiagnostics';
+import { TestHistory } from './components/TestHistory';
+import { ShareModal } from './components/ShareModal';
+import { SettingsDrawer } from './components/SettingsDrawer';
+
+export default function App() {
+  // Test State
+  const [phase, setPhase] = useState<TestPhase>('idle');
+  const [currentSpeed, setCurrentSpeed] = useState<number>(0);
+  const [peakSpeed, setPeakSpeed] = useState<number>(0);
+  const [progressPct, setProgressPct] = useState<number>(0);
+
+  // Live Metrics
+  const [pingMs, setPingMs] = useState<number>(0);
+  const [jitterMs, setJitterMs] = useState<number>(0);
+  const [loadedPingMs, setLoadedPingMs] = useState<number>(0);
+  const [downloadMbps, setDownloadMbps] = useState<number>(0);
+  const [uploadMbps, setUploadMbps] = useState<number>(0);
+  const [downloadBytes, setDownloadBytes] = useState<number>(0);
+  const [uploadBytes, setUploadBytes] = useState<number>(0);
+
+  // Telemetry Time-Series
+  const [telemetry, setTelemetry] = useState<TelemetryPoint[]>([]);
+
+  // Results & History
+  const [currentResult, setCurrentResult] = useState<SpeedTestResult | null>(null);
+  const [history, setHistory] = useState<SpeedTestResult[]>([]);
+  const [clientInfo, setClientInfo] = useState<ClientNetworkInfo | null>(null);
+
+  // Configuration
+  const [config, setConfig] = useState<SpeedTestConfig>({
+    server: DEFAULT_SERVERS[0],
+    durationSeconds: 10,
+    concurrency: 4,
+    soundEnabled: true,
+    unit: 'Mbps',
+  });
+
+  // UI Drawers & Modals
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isShareOpen, setIsShareOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'test' | 'diagnostics' | 'history'>('test');
+
+  // Engine instance
+  const engineRef = useRef<SpeedTestEngine>(new SpeedTestEngine());
+
+  // Load history from localStorage & fetch client info on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('velocitynet_test_history');
+      if (saved) {
+        setHistory(JSON.parse(saved));
+      }
+    } catch {
+      // Ignore
+    }
+
+    fetchClientInfo().then((info) => {
+      setClientInfo(info);
+    });
+  }, []);
+
+  // Sync sound setting
+  useEffect(() => {
+    soundManager.setEnabled(config.soundEnabled);
+  }, [config.soundEnabled]);
+
+  // Start Speed Test
+  const handleStartTest = async () => {
+    if (phase !== 'idle' && phase !== 'completed' && phase !== 'error') {
+      // If currently testing, cancel it
+      engineRef.current.cancel();
+      soundManager.stopStreamEngine();
+      setPhase('idle');
+      return;
+    }
+
+    // Reset metrics
+    setPhase('ping');
+    setCurrentSpeed(0);
+    setPeakSpeed(0);
+    setProgressPct(0);
+    setPingMs(0);
+    setJitterMs(0);
+    setLoadedPingMs(0);
+    setDownloadMbps(0);
+    setUploadMbps(0);
+    setDownloadBytes(0);
+    setUploadBytes(0);
+    setTelemetry([]);
+
+    try {
+      const result = await engineRef.current.runTest(
+        config.server,
+        config.durationSeconds,
+        config.concurrency,
+        {
+          onPhaseChange: (p) => {
+            setPhase(p);
+            if (p === 'download' || p === 'upload') {
+              soundManager.startStreamEngine();
+            } else if (p === 'completed' || p === 'error') {
+              soundManager.stopStreamEngine();
+            }
+          },
+          onPingProgress: (p, j) => {
+            setPingMs(p);
+            setJitterMs(j);
+          },
+          onDownloadProgress: (instant, smooth, bytes, pct) => {
+            setCurrentSpeed(smooth);
+            setDownloadMbps(smooth);
+            setDownloadBytes(bytes);
+            setProgressPct(pct);
+            setPeakSpeed((prev) => Math.max(prev, smooth));
+            soundManager.updateStreamPitch(smooth);
+          },
+          onUploadProgress: (instant, smooth, bytes, pct) => {
+            setCurrentSpeed(smooth);
+            setUploadMbps(smooth);
+            setUploadBytes(bytes);
+            setProgressPct(pct);
+            setPeakSpeed((prev) => Math.max(prev, smooth));
+            soundManager.updateStreamPitch(smooth);
+          },
+          onTelemetryPoint: (pt) => {
+            setTelemetry((prev) => [...prev, pt]);
+          },
+        }
+      );
+
+      setCurrentResult(result);
+      if (result.clientInfo) {
+        setClientInfo(result.clientInfo);
+      }
+
+      // Save to history
+      setHistory((prev) => {
+        const updated = [result, ...prev.slice(0, 29)];
+        try {
+          localStorage.setItem('velocitynet_test_history', JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
+    } catch (err) {
+      soundManager.stopStreamEngine();
+      if (phase !== 'idle') {
+        setPhase('error');
+      }
+    }
+  };
+
+  const handleClearHistory = () => {
+    setHistory([]);
+    try {
+      localStorage.removeItem('velocitynet_test_history');
+    } catch {}
+  };
+
+  const isTesting = phase === 'ping' || phase === 'download' || phase === 'upload';
+
+  return (
+    <div className="min-h-screen bg-[#06080e] text-slate-100 flex flex-col font-sans selection:bg-cyan-500/30 selection:text-cyan-200 relative overflow-x-hidden">
+      {/* Futuristic Background Ambient Glows & Cyber Matrix */}
+      <div className="fixed inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(0,240,255,0.15),rgba(255,255,255,0))] pointer-events-none" />
+      <div className="fixed bottom-0 right-0 w-[500px] h-[500px] bg-[radial-gradient(circle_at_center,rgba(99,102,241,0.08),transparent_70%)] pointer-events-none" />
+      <div className="fixed inset-0 bg-[linear-gradient(to_right,#0d1527_1px,transparent_1px),linear-gradient(to_bottom,#0d1527_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-35 pointer-events-none" />
+
+      {/* Top Bar Contract: Zone 1 (Single Brand element) - Zone 2 (4-6 Clean text links) - Zone 3 (1-2 Primary actions) */}
+      <header className="sticky top-0 z-40 w-full border-b border-cyan-500/20 bg-[#06080e]/85 backdrop-blur-xl shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+          {/* Zone 1: Single text wordmark */}
+          <a
+            href="/"
+            onClick={(e) => {
+              e.preventDefault();
+              setActiveTab('test');
+            }}
+            className="text-lg font-bold tracking-wider text-white font-display flex items-center gap-2 group cursor-pointer"
+          >
+            <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_10px_#00f0ff] animate-pulse" />
+            <span className="bg-gradient-to-r from-white via-cyan-100 to-cyan-400 bg-clip-text text-transparent group-hover:drop-shadow-[0_0_15px_rgba(0,240,255,0.8)] transition-all">
+              VELOCITYNET
+            </span>
+          </a>
+
+          {/* Zone 2: 4-5 Clean nav links */}
+          <nav className="hidden md:flex items-center gap-7 text-xs font-mono-data tracking-wide uppercase">
+            <button
+              onClick={() => setActiveTab('test')}
+              className={`hover:text-cyan-400 transition-colors cursor-pointer py-1 ${
+                activeTab === 'test' ? 'text-cyan-400 border-b-2 border-cyan-400 font-bold' : 'text-slate-400'
+              }`}
+            >
+              Speed Cockpit
+            </button>
+            <button
+              onClick={() => setActiveTab('diagnostics')}
+              className={`hover:text-cyan-400 transition-colors cursor-pointer py-1 ${
+                activeTab === 'diagnostics' ? 'text-cyan-400 border-b-2 border-cyan-400 font-bold' : 'text-slate-400'
+              }`}
+            >
+              Diagnostics
+            </button>
+            <button
+              onClick={() => setActiveTab('history')}
+              className={`hover:text-cyan-400 transition-colors cursor-pointer py-1 ${
+                activeTab === 'history' ? 'text-cyan-400 border-b-2 border-cyan-400 font-bold' : 'text-slate-400'
+              }`}
+            >
+              Logs ({history.length})
+            </button>
+            <button
+              onClick={() => setIsSettingsOpen(true)}
+              className="text-slate-400 hover:text-cyan-400 transition-colors cursor-pointer py-1"
+            >
+              Edge Nodes
+            </button>
+          </nav>
+
+          {/* Zone 3: 1-2 Primary Actions */}
+          <div className="flex items-center gap-2.5">
+            {/* Audio Synth Toggle Button */}
+            <button
+              onClick={() => setConfig({ ...config, soundEnabled: !config.soundEnabled })}
+              className={`p-2 rounded-lg border transition-all cursor-pointer ${
+                config.soundEnabled
+                  ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-400 shadow-[0_0_10px_rgba(0,240,255,0.2)]'
+                  : 'border-slate-800 bg-slate-900/60 text-slate-500 hover:text-slate-300'
+              }`}
+              title={config.soundEnabled ? 'Telemetry Audio Active (Mute)' : 'Telemetry Audio Muted (Unmute)'}
+            >
+              {config.soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            </button>
+
+            <button
+              onClick={() => setIsSettingsOpen(true)}
+              className="p-2 text-slate-400 hover:text-cyan-300 bg-slate-900/80 hover:bg-slate-800 rounded-lg border border-slate-800 hover:border-cyan-500/40 transition-colors cursor-pointer"
+              title="Test configuration & Edge nodes"
+            >
+              <Sliders className="w-4 h-4" />
+            </button>
+
+            {currentResult && (
+              <button
+                onClick={() => setIsShareOpen(true)}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono-data text-cyan-300 bg-cyan-950/40 hover:bg-cyan-900/40 rounded-lg border border-cyan-500/40 transition-all cursor-pointer whitespace-nowrap shadow-[0_0_15px_rgba(0,240,255,0.15)]"
+              >
+                <Share2 className="w-3.5 h-3.5 text-cyan-400" />
+                Export
+              </button>
+            )}
+
+            <button
+              onClick={handleStartTest}
+              className={`px-4 py-1.5 text-xs font-display font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+                isTesting
+                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/50 shadow-[0_0_15px_rgba(244,63,94,0.3)] hover:bg-rose-500/30'
+                  : 'bg-gradient-to-r from-cyan-400 to-sky-500 text-slate-950 shadow-[0_0_20px_rgba(0,240,255,0.5)] hover:shadow-[0_0_30px_rgba(0,240,255,0.7)] hover:scale-[1.02]'
+              }`}
+            >
+              {isTesting ? (
+                <>
+                  <RotateCcw className="w-3.5 h-3.5 animate-spin" />
+                  ABORT
+                </>
+              ) : (
+                <>
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                  {currentResult ? 'RESCAN' : 'ENGAGE'}
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content Area */}
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-7 relative z-10">
+        {/* Mobile Navigation Segmented Tabs */}
+        <div className="flex md:hidden items-center justify-center p-1 bg-slate-900/90 rounded-xl border border-slate-800">
+          <button
+            onClick={() => setActiveTab('test')}
+            className={`flex-1 py-1.5 text-xs font-mono-data uppercase font-bold rounded-lg transition-colors cursor-pointer ${
+              activeTab === 'test' ? 'bg-cyan-500 text-slate-950 shadow-[0_0_10px_#00f0ff]' : 'text-slate-400'
+            }`}
+          >
+            Cockpit
+          </button>
+          <button
+            onClick={() => setActiveTab('diagnostics')}
+            className={`flex-1 py-1.5 text-xs font-mono-data uppercase font-bold rounded-lg transition-colors cursor-pointer ${
+              activeTab === 'diagnostics' ? 'bg-cyan-500 text-slate-950 shadow-[0_0_10px_#00f0ff]' : 'text-slate-400'
+            }`}
+          >
+            Diagnostics
+          </button>
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`flex-1 py-1.5 text-xs font-mono-data uppercase font-bold rounded-lg transition-colors cursor-pointer ${
+              activeTab === 'history' ? 'bg-cyan-500 text-slate-950 shadow-[0_0_10px_#00f0ff]' : 'text-slate-400'
+            }`}
+          >
+            Logs
+          </button>
+        </div>
+
+        {/* View 1: Main Speed Test Cockpit */}
+        {activeTab === 'test' && (
+          <div className="space-y-7">
+            {/* Futuristic Edge Server Selector & Network HUD Ribbon */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-[#090d16]/90 border border-cyan-500/20 shadow-lg text-xs font-mono-data relative overflow-hidden">
+              <div className="absolute top-0 left-0 bottom-0 w-1 bg-gradient-to-b from-cyan-400 to-indigo-500" />
+
+              {/* Left: Active Server Quick Switch */}
+              <div className="flex items-center gap-2 text-slate-300 pl-1.5">
+                <Server className="w-4 h-4 text-cyan-400 shrink-0" />
+                <span className="text-slate-500 font-semibold">NODE:</span>
+                <div className="flex items-center gap-1.5">
+                  {DEFAULT_SERVERS.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => setConfig({ ...config, server: s })}
+                      className={`px-2 py-0.5 rounded text-[11px] font-mono-data transition-all cursor-pointer whitespace-nowrap ${
+                        config.server.id === s.id
+                          ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 shadow-[0_0_8px_rgba(0,240,255,0.3)] font-semibold'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                      }`}
+                    >
+                      {s.name.replace('Global ', '').replace(' Node', '')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Right: Client IP & ISP */}
+              <div className="flex items-center gap-2 text-slate-400">
+                <Globe className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="text-slate-500 font-semibold">ISP:</span>
+                <span className="text-slate-200 font-medium truncate max-w-xs">
+                  {clientInfo?.isp || 'Broadband Network'}
+                </span>
+                {clientInfo?.ip && (
+                  <>
+                    <span aria-hidden="true" className="text-slate-700">·</span>
+                    <span className="text-cyan-400 font-semibold">{clientInfo.ip}</span>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Central Holographic Speedometer Dial Stage */}
+            <div className="relative flex flex-col items-center justify-center py-2 sm:py-4">
+              <SpeedGauge
+                currentSpeed={currentSpeed}
+                peakSpeed={peakSpeed}
+                unit={config.unit}
+                phase={phase}
+                progressPct={progressPct}
+                pingMs={pingMs}
+                jitterMs={jitterMs}
+              />
+
+              {/* Cyber Central Launch Button */}
+              <div className="mt-4 flex flex-col items-center justify-center">
+                <button
+                  onClick={handleStartTest}
+                  disabled={isTesting}
+                  className={`group relative px-9 py-4 rounded-2xl font-black font-display text-base tracking-widest uppercase transition-all duration-300 cursor-pointer flex items-center gap-3 overflow-hidden ${
+                    isTesting
+                      ? 'bg-slate-900/90 text-slate-300 border border-slate-700/80 shadow-inner'
+                      : 'bg-gradient-to-r from-cyan-400 via-sky-300 to-cyan-400 text-slate-950 shadow-[0_0_35px_rgba(0,240,255,0.6)] hover:shadow-[0_0_50px_rgba(0,240,255,0.9)] hover:scale-105 active:scale-95'
+                  }`}
+                >
+                  {/* Subtle sweep glare highlight */}
+                  <span className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 pointer-events-none" />
+
+                  {isTesting ? (
+                    <>
+                      <RotateCcw className="w-5 h-5 animate-spin text-cyan-400" />
+                      <span>SATURATING LINK ({progressPct.toFixed(0)}%)</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-5 h-5 fill-current text-slate-950" />
+                      <span>{currentResult ? 'INITIATE RESCAN' : 'ENGAGE SPEED SCAN'}</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Sub-bar Quick Controls */}
+                <div className="mt-3.5 flex items-center gap-3 text-xs font-mono-data text-slate-400">
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-cyan-400" />
+                    <button
+                      onClick={() => setConfig({ ...config, durationSeconds: config.durationSeconds === 10 ? 5 : config.durationSeconds === 5 ? 20 : 10 })}
+                      className="hover:text-cyan-300 underline decoration-dotted transition-colors cursor-pointer"
+                    >
+                      {config.durationSeconds}s Scan
+                    </button>
+                  </div>
+                  <span aria-hidden="true" className="text-slate-700">·</span>
+                  <div className="flex items-center gap-1.5">
+                    <Cpu className="w-3.5 h-3.5 text-indigo-400" />
+                    <button
+                      onClick={() => setConfig({ ...config, concurrency: config.concurrency === 4 ? 8 : config.concurrency === 8 ? 1 : 4 })}
+                      className="hover:text-cyan-300 underline decoration-dotted transition-colors cursor-pointer"
+                    >
+                      {config.concurrency}x Streams
+                    </button>
+                  </div>
+                  <span aria-hidden="true" className="text-slate-700">·</span>
+                  <button
+                    onClick={() => setConfig({ ...config, unit: config.unit === 'Mbps' ? 'MB/s' : config.unit === 'MB/s' ? 'Gbps' : 'Mbps' })}
+                    className="text-cyan-400 font-bold hover:text-white transition-colors cursor-pointer"
+                  >
+                    {config.unit}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Core 4 Metric Panels */}
+            <MetricCards
+              phase={phase}
+              pingMs={pingMs}
+              jitterMs={jitterMs}
+              loadedPingMs={loadedPingMs}
+              downloadMbps={downloadMbps}
+              uploadMbps={uploadMbps}
+              peakDownloadMbps={currentResult?.peakDownloadMbps || peakSpeed}
+              peakUploadMbps={currentResult?.peakUploadMbps}
+              downloadBytes={downloadBytes}
+              uploadBytes={uploadBytes}
+              unit={config.unit}
+            />
+
+            {/* Futuristic Bandwidth Oscilloscope Waveform */}
+            <LiveTelemetryChart
+              telemetry={telemetry}
+              currentPhase={phase}
+              unit={config.unit}
+            />
+
+            {/* Connection Diagnostics Preview */}
+            {currentResult && (
+              <div className="pt-2">
+                <NetworkDiagnostics result={currentResult} clientInfo={clientInfo} />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* View 2: Detailed Network Diagnostics */}
+        {activeTab === 'diagnostics' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between border-b border-cyan-500/20 pb-4">
+              <div>
+                <h2 className="text-xl font-bold font-display text-white tracking-wide flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-cyan-400" />
+                  Quantum Telemetry &amp; Link Health
+                </h2>
+                <p className="text-xs text-slate-400 mt-1 font-mono-data">
+                  Empirical bufferbloat, loaded latency, jitter variance, and application streaming suitability
+                </p>
+              </div>
+              {currentResult && (
+                <button
+                  onClick={handleStartTest}
+                  className="px-3.5 py-1.5 text-xs font-mono-data font-semibold text-cyan-400 bg-cyan-500/10 border border-cyan-500/40 rounded-lg hover:bg-cyan-500/20 transition-all cursor-pointer shadow-[0_0_12px_rgba(0,240,255,0.2)]"
+                >
+                  Rerun Diagnostics
+                </button>
+              )}
+            </div>
+
+            <NetworkDiagnostics result={currentResult} clientInfo={clientInfo} />
+
+            {/* Deep Technical Explanations */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+              <div className="p-5 rounded-xl bg-[#090d16]/90 border border-slate-800/90 shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-amber-400 to-transparent" />
+                <h4 className="text-sm font-semibold font-display text-white mb-2 flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-amber-400" />
+                  Bufferbloat &amp; Loaded Latency Dynamics
+                </h4>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Bufferbloat occurs when network hardware queues excessive packets under heavy download or upload saturation, causing ping spikes. Low loaded latency (Grade A or A+) ensures zero game hitches or voice dropouts while other household devices download high-capacity media.
+                </p>
+              </div>
+
+              <div className="p-5 rounded-xl bg-[#090d16]/90 border border-slate-800/90 shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-cyan-400 to-transparent" />
+                <h4 className="text-sm font-semibold font-display text-white mb-2 flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-cyan-400" />
+                  Multi-Stream Saturation Mechanics
+                </h4>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Modern fiber and gigabit broadband require multiple parallel TCP streams to overcome individual TCP window limits. VelocityNet automatically opens concurrent streams (1 to 8 threads) to measure the true physical bandwidth capacity of your ISP network.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* View 3: Historical Records */}
+        {activeTab === 'history' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between border-b border-cyan-500/20 pb-4">
+              <div>
+                <h2 className="text-xl font-bold font-display text-white tracking-wide">Telemetry Archives</h2>
+                <p className="text-xs text-slate-400 mt-1 font-mono-data">
+                  Locally stored test records for tracking ISP reliability and line degradation over time
+                </p>
+              </div>
+            </div>
+
+            {history.length > 0 ? (
+              <TestHistory
+                history={history}
+                onClearHistory={handleClearHistory}
+                onSelectResult={(res) => {
+                  setCurrentResult(res);
+                  setActiveTab('test');
+                }}
+                unit={config.unit}
+              />
+            ) : (
+              <div className="bg-[#090d16]/90 border border-slate-800/80 rounded-2xl p-12 text-center shadow-2xl">
+                <div className="w-14 h-14 rounded-full bg-slate-900 border border-cyan-500/30 flex items-center justify-center mx-auto mb-3 text-cyan-400 shadow-[0_0_20px_rgba(0,240,255,0.2)]">
+                  <Wifi className="w-7 h-7" />
+                </div>
+                <h3 className="text-base font-semibold font-display text-white">No Telemetry Logs Recorded</h3>
+                <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                  Execute your first internet speed scan to automatically log latency, jitter variance, and bandwidth telemetry.
+                </p>
+                <button
+                  onClick={() => {
+                    setActiveTab('test');
+                    handleStartTest();
+                  }}
+                  className="mt-5 px-5 py-2.5 text-xs font-display font-bold uppercase tracking-wider text-slate-950 bg-gradient-to-r from-cyan-400 to-sky-400 rounded-xl transition-all cursor-pointer shadow-[0_0_20px_rgba(0,240,255,0.4)] hover:shadow-[0_0_30px_rgba(0,240,255,0.6)]"
+                >
+                  Initiate Scan Now
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </main>
+
+      {/* Cyberpunk Footer */}
+      <footer className="w-full border-t border-slate-800/80 py-6 mt-12 bg-[#04060a] relative z-10">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-mono-data text-slate-500">
+          <div>
+            <span className="text-slate-400 font-semibold">VELOCITYNET v3.2</span>
+            <span aria-hidden="true" className="mx-2">·</span>
+            <span>HIGH-PRECISION MULTI-STREAM TELEMETRY</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsSettingsOpen(true)}
+              className="hover:text-cyan-400 transition-colors cursor-pointer"
+            >
+              Configure Nodes
+            </button>
+            <button
+              onClick={() => setActiveTab('diagnostics')}
+              className="hover:text-cyan-400 transition-colors cursor-pointer"
+            >
+              Bufferbloat Guide
+            </button>
+          </div>
+        </div>
+      </footer>
+
+      {/* Settings & Share Modals */}
+      <SettingsDrawer
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        config={config}
+        onConfigChange={setConfig}
+        availableServers={DEFAULT_SERVERS}
+      />
+
+      <ShareModal
+        result={currentResult}
+        isOpen={isShareOpen}
+        onClose={() => setIsShareOpen(false)}
+        unit={config.unit}
+      />
+    </div>
+  );
+}
