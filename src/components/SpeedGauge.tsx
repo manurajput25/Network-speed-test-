@@ -1,7 +1,9 @@
 import React, { useMemo } from 'react';
 import { TestPhase } from '../types/speedtest';
-import { ArrowDown, ArrowUp, Monitor, Smartphone, Tablet, Laptop, Sliders } from 'lucide-react';
+import { ArrowDown, ArrowUp, Monitor, Smartphone, Tablet, Laptop, Sliders, Thermometer } from 'lucide-react';
 import { DeviceTelemetryInfo } from '../utils/device-detection';
+import { WeatherInfo } from '../utils/location';
+import { DeviceThermalTelemetry } from '../utils/device-thermals';
 
 interface SpeedGaugeProps {
   speedMbps: number; // Canonical speed in Mbps
@@ -19,6 +21,10 @@ interface SpeedGaugeProps {
   scaleRange?: 'auto' | '50' | '100' | '250' | '500' | '1000';
   onScaleRangeChange?: (range: 'auto' | '50' | '100' | '250' | '500' | '1000') => void;
   deviceInfo?: DeviceTelemetryInfo | null;
+  weather?: WeatherInfo | null;
+  deviceThermals?: DeviceThermalTelemetry | null;
+  tempUnit?: 'C' | 'F';
+  onToggleTempUnit?: () => void;
 }
 
 interface ScaleDefinition {
@@ -50,6 +56,10 @@ export const SpeedGauge: React.FC<SpeedGaugeProps> = ({
   scaleRange = 'auto',
   onScaleRangeChange,
   deviceInfo,
+  weather,
+  deviceThermals,
+  tempUnit = 'C',
+  onToggleTempUnit,
 }) => {
   const isDark = resolvedTheme === 'dark';
 

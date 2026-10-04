@@ -40,7 +40,8 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4 w-full">
       {/* 1. Ping Latency Pod */}
       <div
-        className={`relative p-4 rounded-xl border transition-all duration-300 overflow-hidden shadow-xs ${
+        key={`metric-card-ping-${phase}`}
+        className={`relative p-4 rounded-xl border transition-all duration-300 overflow-hidden shadow-xs animate-metric-card-0 ${
           phase === 'ping'
             ? 'border-sky-500 bg-sky-50/70 dark:bg-[#0c1427] dark:border-sky-400 shadow-md dark:shadow-[0_0_25px_rgba(56,189,248,0.25)] ring-1 ring-sky-400/40'
             : 'border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#090d16]/90 hover:border-slate-300 dark:hover:border-slate-700'
@@ -82,7 +83,8 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
 
       {/* 2. Jitter Variance Pod */}
       <div
-        className={`relative p-4 rounded-xl border transition-all duration-300 overflow-hidden shadow-xs ${
+        key={`metric-card-jitter-${phase}`}
+        className={`relative p-4 rounded-xl border transition-all duration-300 overflow-hidden shadow-xs animate-metric-card-1 ${
           phase === 'ping'
             ? 'border-indigo-500 bg-indigo-50/70 dark:bg-[#0c1427] dark:border-indigo-400 shadow-md dark:shadow-[0_0_25px_rgba(99,102,241,0.2)]'
             : 'border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#090d16]/90 hover:border-slate-300 dark:hover:border-slate-700'
@@ -124,7 +126,8 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
 
       {/* 3. Download Speed Pod */}
       <div
-        className={`relative p-4 rounded-xl border transition-all duration-300 overflow-hidden shadow-xs ${
+        key={`metric-card-download-${phase}`}
+        className={`relative p-4 rounded-xl border transition-all duration-300 overflow-hidden shadow-xs animate-metric-card-2 ${
           phase === 'download'
             ? 'border-cyan-500 bg-cyan-50/70 dark:bg-[#061826] dark:border-cyan-400 shadow-md dark:shadow-[0_0_30px_rgba(0,240,255,0.3)] ring-1 ring-cyan-400/50'
             : 'border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#090d16]/90 hover:border-slate-300 dark:hover:border-slate-700'
@@ -164,7 +167,8 @@ export const MetricCards: React.FC<MetricCardsProps> = ({
 
       {/* 4. Upload Speed Pod */}
       <div
-        className={`relative p-4 rounded-xl border transition-all duration-300 overflow-hidden shadow-xs ${
+        key={`metric-card-upload-${phase}`}
+        className={`relative p-4 rounded-xl border transition-all duration-300 overflow-hidden shadow-xs animate-metric-card-3 ${
           phase === 'upload'
             ? 'border-emerald-500 bg-emerald-50/70 dark:bg-[#061e18] dark:border-emerald-400 shadow-md dark:shadow-[0_0_30px_rgba(16,229,153,0.3)] ring-1 ring-emerald-400/50'
             : 'border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#090d16]/90 hover:border-slate-300 dark:hover:border-slate-700'

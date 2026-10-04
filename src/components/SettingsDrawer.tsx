@@ -1,7 +1,8 @@
 import React from 'react';
-import { X, Sliders, Server, Volume2, VolumeX, Cpu, Clock, Check, Sun, Moon, Laptop } from 'lucide-react';
+import { X, Sliders, Server, Volume2, VolumeX, Cpu, Clock, Check, Sun, Moon, Laptop, Smartphone } from 'lucide-react';
 import { ServerTarget, SpeedTestConfig } from '../types/speedtest';
 import { ThemeMode } from '../types/theme';
+import { PWAInstallPrompt } from './PWAInstallPrompt';
 
 interface SettingsDrawerProps {
   isOpen: boolean;
@@ -270,6 +271,24 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                   }`}
                 />
               </button>
+            </div>
+
+            {/* 7. PWA Mobile App Installation */}
+            <div className="pt-3 border-t border-slate-200 dark:border-slate-800">
+              <div className="p-3.5 rounded-xl bg-gradient-to-r from-cyan-500/10 via-sky-500/10 to-indigo-500/10 border border-cyan-500/30 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5 font-display">
+                    <Smartphone className="w-4 h-4 text-cyan-600 dark:text-cyan-400 shrink-0" />
+                    Mobile Application
+                  </div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+                    Direct phone installation &amp; home screen app
+                  </div>
+                </div>
+                <div className="shrink-0">
+                  <PWAInstallPrompt variant="button" />
+                </div>
+              </div>
             </div>
           </div>
         </div>

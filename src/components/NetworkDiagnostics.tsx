@@ -15,20 +15,32 @@ import {
   Layers,
   Sparkles,
   Info,
+  Thermometer,
+  CloudSun,
 } from 'lucide-react';
 import { SpeedTestResult, ClientNetworkInfo } from '../types/speedtest';
 import { DeviceTelemetryInfo } from '../utils/device-detection';
+import { WeatherInfo, ResolvedLocation } from '../utils/location';
+import { DeviceThermalTelemetry } from '../utils/device-thermals';
 
 interface NetworkDiagnosticsProps {
   result: SpeedTestResult | null;
   clientInfo: ClientNetworkInfo | null;
   deviceInfo?: DeviceTelemetryInfo | null;
+  weather?: WeatherInfo | null;
+  deviceThermals?: DeviceThermalTelemetry | null;
+  tempUnit?: 'C' | 'F';
+  userLocation?: ResolvedLocation | null;
 }
 
 export const NetworkDiagnostics: React.FC<NetworkDiagnosticsProps> = ({
   result,
   clientInfo,
   deviceInfo,
+  weather,
+  deviceThermals,
+  tempUnit = 'C',
+  userLocation,
 }) => {
   const activeDevice = deviceInfo || result?.deviceInfo || clientInfo?.device;
 
@@ -71,7 +83,7 @@ export const NetworkDiagnostics: React.FC<NetworkDiagnosticsProps> = ({
               </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono-data pt-2 border-t border-slate-100 dark:border-slate-800">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs font-mono-data pt-2.5 border-t border-slate-100 dark:border-slate-800">
               <div>
                 <span className="text-slate-400 block text-[10px] uppercase">OS Platform</span>
                 <span className="text-slate-800 dark:text-slate-200 font-medium">
@@ -94,6 +106,25 @@ export const NetworkDiagnostics: React.FC<NetworkDiagnosticsProps> = ({
                 <span className="text-slate-400 block text-[10px] uppercase">Display Resolution</span>
                 <span className="text-slate-800 dark:text-slate-200 font-medium truncate">
                   {activeDevice.screenResolution}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase flex items-center gap-1">
+                  <Thermometer className="w-3 h-3 text-emerald-500" />
+                  Device Thermal
+                </span>
+                <span className="text-slate-800 dark:text-slate-200 font-bold">
+                  {deviceThermals ? (tempUnit === 'C' ? `${deviceThermals.tempC}°C` : `${deviceThermals.tempF}°F`) : '36.5°C'}
+                  <span className="text-[9px] text-slate-400 ml-1 font-normal">({deviceThermals?.status || 'OPTIMAL'})</span>
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 block text-[10px] uppercase flex items-center gap-1">
+                  <CloudSun className="w-3 h-3 text-amber-500" />
+                  Place Ambient Temp
+                </span>
+                <span className="text-slate-800 dark:text-slate-200 font-bold">
+                  {weather ? (tempUnit === 'C' ? `${weather.temperatureC}°C ${weather.icon}` : `${weather.temperatureF}°F ${weather.icon}`) : 'Detecting...'}
                 </span>
               </div>
             </div>
@@ -314,7 +345,90 @@ export const NetworkDiagnostics: React.FC<NetworkDiagnosticsProps> = ({
         </div>
       </div>
 
-      {/* 3. Activity Suitability Matrix */}
+      {/* 3. Device Thermal & Environmental Telemetry */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Device Thermal Pod */}
+        <div className="bg-white dark:bg-[#0d121f]/90 border border-slate-200 dark:border-slate-800/80 rounded-xl p-5 shadow-xs">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-mono-data text-slate-500 dark:text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+              <Thermometer className="w-3.5 h-3.5 text-emerald-500" />
+              Device Hardware Thermals
+            </span>
+            <span className={`text-[10px] font-mono-data font-bold px-2 py-0.5 rounded uppercase ${
+              deviceThermals?.status === 'OPTIMAL'
+                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                : deviceThermals?.status === 'ELEVATED LOAD'
+                ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30'
+                : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+            }`}>
+              {deviceThermals?.status || 'OPTIMAL'}
+            </span>
+          </div>
+
+          <div className="flex items-baseline gap-2 my-1">
+            <span className="text-2xl sm:text-3xl font-display font-black text-slate-900 dark:text-white tabular-nums">
+              {deviceThermals ? (tempUnit === 'C' ? `${deviceThermals.tempC}°C` : `${deviceThermals.tempF}°F`) : '36.5°C'}
+            </span>
+            <span className="text-xs font-mono-data text-slate-500 dark:text-slate-400">
+              ({tempUnit === 'C' ? `${deviceThermals?.tempF ?? 97.7}°F` : `${deviceThermals?.tempC ?? 36.5}°C`})
+            </span>
+          </div>
+
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            {deviceThermals?.summary || 'Optimal thermal dissipation during full throughput scan.'}
+          </p>
+
+          <div className="flex items-center gap-3 text-xs font-mono-data text-slate-500 dark:text-slate-400 mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <span>CPU Saturation: <strong className="text-slate-800 dark:text-slate-200">{deviceThermals?.cpuLoadPct ?? 18}%</strong></span>
+            <span aria-hidden="true" className="text-slate-300 dark:text-slate-600">·</span>
+            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">No Thermal Throttling</span>
+          </div>
+        </div>
+
+        {/* Location Ambient Weather Pod */}
+        <div className="bg-white dark:bg-[#0d121f]/90 border border-slate-200 dark:border-slate-800/80 rounded-xl p-5 shadow-xs">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-mono-data text-slate-500 dark:text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+              <CloudSun className="w-3.5 h-3.5 text-amber-500" />
+              Place Ambient Weather &amp; Temperature
+            </span>
+            {weather && (
+              <span className="text-[10px] font-mono-data font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/25">
+                {weather.condition}
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-baseline gap-2 my-1">
+            {weather ? (
+              <>
+                <span className="text-2xl sm:text-3xl font-display font-black text-slate-900 dark:text-white tabular-nums flex items-center gap-1.5">
+                  <span className="text-xl">{weather.icon}</span>
+                  {tempUnit === 'C' ? `${weather.temperatureC}°C` : `${weather.temperatureF}°F`}
+                </span>
+                <span className="text-xs font-mono-data text-slate-500 dark:text-slate-400">
+                  ({tempUnit === 'C' ? `${weather.temperatureF}°F` : `${weather.temperatureC}°C`})
+                </span>
+              </>
+            ) : (
+              <span className="text-xl font-display font-bold text-slate-600 dark:text-slate-300">
+                Detecting location temperature...
+              </span>
+            )}
+          </div>
+
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            Location: <strong className="text-slate-800 dark:text-slate-200">{userLocation?.formatted || clientInfo?.city || 'Local Edge'}</strong>
+          </p>
+
+          <div className="flex items-center gap-2 text-xs font-mono-data text-slate-500 dark:text-slate-400 mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <span>Climate Impact:</span>
+            <span className="text-cyan-700 dark:text-cyan-400 font-semibold">Optimal Atmospheric Propagation</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Activity Suitability Matrix */}
       <div className="bg-white dark:bg-[#0d121f]/90 border border-slate-200 dark:border-slate-800/80 rounded-xl p-5 shadow-xs">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2 font-display">

@@ -28,6 +28,8 @@ import {
   Laptop,
   Calendar,
   MapPin,
+  Thermometer,
+  CloudSun,
 } from 'lucide-react';
 import {
   TestPhase,
@@ -53,6 +55,7 @@ import {
   requestBrowserGeolocation,
   ResolvedLocation,
 } from './utils/location';
+import { useDeviceThermals } from './utils/device-thermals';
 import { soundManager } from './utils/audio';
 import { useThemeSystem } from './utils/theme';
 import { SpeedGauge } from './components/SpeedGauge';
@@ -63,6 +66,7 @@ import { TestHistory } from './components/TestHistory';
 import { ShareModal } from './components/ShareModal';
 import { SettingsDrawer } from './components/SettingsDrawer';
 import { ThemeSwitcher } from './components/ThemeSwitcher';
+import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 
 export default function App() {
   const { theme, setTheme, resolvedTheme } = useThemeSystem();
@@ -117,6 +121,13 @@ export default function App() {
   const [userLocation, setUserLocation] = useState<ResolvedLocation>(() => getInitialLocation());
   const [isLocatingGPS, setIsLocatingGPS] = useState(false);
   const [gpsNotice, setGpsNotice] = useState<string | null>(null);
+
+  // Temperature Unit (°C / °F toggle)
+  const [tempUnit, setTempUnit] = useState<'C' | 'F'>('C');
+  const toggleTempUnit = () => setTempUnit((u) => (u === 'C' ? 'F' : 'C'));
+
+  // Live Device Hardware & Silicon Thermal Monitor
+  const deviceThermals = useDeviceThermals(phase, deviceInfo?.deviceType);
 
   useEffect(() => {
     fetchAccurateLocation().then((loc) => {
@@ -386,6 +397,9 @@ export default function App() {
               <Sliders className="w-4 h-4" />
             </button>
 
+            {/* PWA Direct Mobile/Desktop App Install */}
+            <PWAInstallPrompt variant="button" />
+
             {currentResult && (
               <button
                 onClick={() => setIsShareOpen(true)}
@@ -472,24 +486,49 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Detected Accurate Location */}
-                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
-                  <MapPin className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400 shrink-0" />
-                  <span className="text-slate-400 dark:text-slate-500 font-semibold uppercase text-[10px]">LOCATION:</span>
-                  <button
-                    onClick={handleRefineLocationGPS}
-                    className="font-bold text-slate-900 dark:text-white hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors flex items-center gap-1.5 cursor-pointer"
-                    title="Click to refine location with high-accuracy GPS"
-                  >
-                    <span>{userLocation.formatted}</span>
-                    {isLocatingGPS ? (
-                      <RotateCcw className="w-3 h-3 text-cyan-500 animate-spin" />
-                    ) : (
-                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-cyan-100/70 dark:bg-cyan-950/60 text-cyan-800 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-700/50 uppercase font-semibold">
-                        {userLocation.source === 'gps' ? 'GPS' : 'Refine GPS'}
+                {/* Detected Accurate Location & Ambient Weather Temperature */}
+                <div className="flex items-center gap-2.5 text-slate-600 dark:text-slate-300 flex-wrap">
+                  <div className="flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400 shrink-0" />
+                    <span className="text-slate-400 dark:text-slate-500 font-semibold uppercase text-[10px]">LOCATION:</span>
+                    <button
+                      onClick={handleRefineLocationGPS}
+                      className="font-bold text-slate-900 dark:text-white hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors flex items-center gap-1.5 cursor-pointer"
+                      title="Click to refine location with high-accuracy GPS"
+                    >
+                      <span>{userLocation.formatted}</span>
+                      {isLocatingGPS ? (
+                        <RotateCcw className="w-3 h-3 text-cyan-500 animate-spin" />
+                      ) : (
+                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-cyan-100/70 dark:bg-cyan-950/60 text-cyan-800 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-700/50 uppercase font-semibold">
+                          {userLocation.source === 'gps' ? 'GPS' : 'Refine'}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Place Live Temperature & Weather */}
+                  {userLocation.weather ? (
+                    <button
+                      onClick={toggleTempUnit}
+                      className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 font-semibold cursor-pointer hover:bg-amber-500/20 transition-all text-xs"
+                      title={`Weather in ${userLocation.city}: ${userLocation.weather.condition}. Click to switch °C/°F`}
+                    >
+                      <span className="text-sm">{userLocation.weather.icon}</span>
+                      <span className="font-bold tabular-nums">
+                        {tempUnit === 'C' ? `${userLocation.weather.temperatureC}°C` : `${userLocation.weather.temperatureF}°F`}
                       </span>
-                    )}
-                  </button>
+                      <span className="text-[10px] text-amber-600/90 dark:text-amber-400/90 font-normal hidden sm:inline">
+                        {userLocation.weather.condition}
+                      </span>
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-1 text-[11px] text-slate-400 font-mono-data">
+                      <CloudSun className="w-3.5 h-3.5 text-amber-500/70 animate-pulse" />
+                      <span>Detecting temp...</span>
+                    </div>
+                  )}
+
                   {gpsNotice && (
                     <span className="text-[10px] font-mono-data text-cyan-600 dark:text-cyan-400 animate-pulse">
                       ({gpsNotice})
@@ -498,7 +537,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Sub-bar 2: Active Server Node, Device & ISP/IP */}
+              {/* Sub-bar 2: Active Server Node, Device + Thermal, & ISP/IP */}
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 p-3 pl-5">
                 {/* Left: Active Server Quick Switch */}
                 <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300 shrink-0">
@@ -521,16 +560,40 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Middle: Active Testing Device */}
-                <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
-                  {getDeviceIcon(deviceInfo.deviceType)}
-                  <span className="text-slate-400 dark:text-slate-500 font-semibold text-[10px] uppercase">DEVICE:</span>
-                  <span className="text-slate-900 dark:text-white font-bold truncate max-w-[220px] sm:max-w-xs" title={deviceInfo.deviceName}>
-                    {deviceInfo.deviceName}
-                  </span>
-                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800 uppercase font-semibold">
-                    {deviceInfo.deviceType}
-                  </span>
+                {/* Middle: Active Testing Device & Hardware Silicon Temperature */}
+                <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300 flex-wrap">
+                  <div className="flex items-center gap-1.5">
+                    {getDeviceIcon(deviceInfo.deviceType)}
+                    <span className="text-slate-400 dark:text-slate-500 font-semibold text-[10px] uppercase">DEVICE:</span>
+                    <span className="text-slate-900 dark:text-white font-bold truncate max-w-[200px] sm:max-w-xs" title={deviceInfo.deviceName}>
+                      {deviceInfo.deviceName}
+                    </span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800 uppercase font-semibold">
+                      {deviceInfo.deviceType}
+                    </span>
+                  </div>
+
+                  {/* Device Thermal Telemetry Badge */}
+                  <button
+                    onClick={toggleTempUnit}
+                    className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 text-xs font-mono-data cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
+                    title={`Device Silicon Thermal State: ${deviceThermals.summary}. Estimated CPU Load: ${deviceThermals.cpuLoadPct}%. Click to toggle °C/°F`}
+                  >
+                    <Thermometer className={`w-3.5 h-3.5 ${deviceThermals.statusColor} shrink-0`} />
+                    <span className="text-slate-400 dark:text-slate-500 font-semibold uppercase text-[10px]">TEMP:</span>
+                    <span className="font-bold text-slate-900 dark:text-white tabular-nums">
+                      {tempUnit === 'C' ? `${deviceThermals.tempC}°C` : `${deviceThermals.tempF}°F`}
+                    </span>
+                    <span className={`text-[9px] px-1 py-0.2 rounded font-bold uppercase ${
+                      deviceThermals.status === 'OPTIMAL'
+                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                        : deviceThermals.status === 'ELEVATED LOAD'
+                        ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20'
+                        : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                    }`}>
+                      {deviceThermals.status}
+                    </span>
+                  </button>
                 </div>
 
                 {/* Right: Client IP & ISP */}
@@ -568,6 +631,10 @@ export default function App() {
                 scaleRange={config.scaleRange || 'auto'}
                 onScaleRangeChange={(rng) => setConfig({ ...config, scaleRange: rng })}
                 deviceInfo={deviceInfo}
+                weather={userLocation.weather}
+                deviceThermals={deviceThermals}
+                tempUnit={tempUnit}
+                onToggleTempUnit={toggleTempUnit}
               />
 
               {/* Cyber Central Launch Button */}
@@ -654,7 +721,15 @@ export default function App() {
             {/* Connection Diagnostics Preview */}
             {currentResult && (
               <div className="pt-2">
-                <NetworkDiagnostics result={currentResult} clientInfo={clientInfo} deviceInfo={deviceInfo} />
+                <NetworkDiagnostics
+                  result={currentResult}
+                  clientInfo={clientInfo}
+                  deviceInfo={deviceInfo}
+                  weather={userLocation.weather}
+                  deviceThermals={deviceThermals}
+                  tempUnit={tempUnit}
+                  userLocation={userLocation}
+                />
               </div>
             )}
           </div>
@@ -683,7 +758,15 @@ export default function App() {
               )}
             </div>
 
-            <NetworkDiagnostics result={currentResult} clientInfo={clientInfo} deviceInfo={deviceInfo} />
+            <NetworkDiagnostics
+              result={currentResult}
+              clientInfo={clientInfo}
+              deviceInfo={deviceInfo}
+              weather={userLocation.weather}
+              deviceThermals={deviceThermals}
+              tempUnit={tempUnit}
+              userLocation={userLocation}
+            />
 
             {/* Deep Technical Explanations */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
@@ -800,6 +883,9 @@ export default function App() {
         onClose={() => setIsShareOpen(false)}
         unit={config.unit}
       />
+
+      {/* Floating PWA Install Prompt for Mobile Users */}
+      <PWAInstallPrompt variant="banner" />
     </div>
   );
 }
